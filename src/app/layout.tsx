@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import './app.css'
+import './insights.css'
 
 export const metadata: Metadata = {
   title: 'ComInfla — Sua inflação pessoal',
