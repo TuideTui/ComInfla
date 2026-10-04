@@ -8,22 +8,24 @@
 .closing-heading-with-period > div:first-child { min-width: 0; }
 
 .closing-period-control {
-  min-width: 300px;
-  padding: 14px 16px;
+  min-width: 430px;
+  padding: 15px 16px 16px;
   display: grid;
-  gap: 10px;
+  gap: 12px;
   border: 1px solid #2f2e2d;
-  border-radius: 14px;
-  background: linear-gradient(180deg, #141414, #101011);
-  box-shadow: 0 16px 34px rgba(0,0,0,.18);
+  border-radius: 16px;
+  background: linear-gradient(180deg, #151515, #101011);
+  box-shadow: 0 16px 34px rgba(0,0,0,.2);
 }
 
-.closing-period-control > div:first-child {
+.closing-period-control.is-pending { opacity: .78; }
+
+.closing-period-copy {
   display: grid;
   gap: 3px;
 }
 
-.closing-period-control > div:first-child > span {
+.closing-period-copy > span {
   color: var(--gold-light);
   font-size: 10px;
   font-weight: 800;
@@ -31,54 +33,74 @@
   letter-spacing: .07em;
 }
 
-.closing-period-control > div:first-child > small {
+.closing-period-copy > small {
   color: #77736c;
   font-size: 10px;
   line-height: 1.4;
 }
 
-.closing-period-select-wrap {
-  position: relative;
+.closing-period-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(130px, .65fr);
+  gap: 10px;
+  align-items: end;
 }
 
-.closing-period-select-wrap select {
+.closing-period-field {
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+}
+
+.closing-period-field > span {
+  color: #aaa69e;
+  font-size: 9px;
+  line-height: 1;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .065em;
+}
+
+.closing-period-field .searchable-select-trigger {
+  min-height: 48px;
+  background: linear-gradient(180deg, #111112, #0c0c0d);
+}
+
+.closing-period-field .searchable-select-popover {
   width: 100%;
-  min-height: 46px;
-  padding: 0 42px 0 13px;
-  border: 1px solid #3a3937;
-  border-radius: 11px;
-  background: #0d0d0e;
-  color: #f0eee9;
-  outline: none;
-  appearance: none;
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 650;
-  transition: border-color .18s ease, box-shadow .18s ease;
+  min-width: 250px;
 }
 
-.closing-period-select-wrap select:hover { border-color: #504c43; }
-.closing-period-select-wrap select:focus {
-  border-color: var(--gold);
-  box-shadow: 0 0 0 3px rgba(214,169,79,.08);
-}
-.closing-period-select-wrap select:disabled { opacity: .65; cursor: wait; }
-.closing-period-select-wrap option { background: #151516; color: #f0eee9; }
-
-.closing-period-chevron {
-  position: absolute;
-  right: 14px;
-  top: 50%;
-  transform: translateY(-54%);
-  pointer-events: none;
-  color: var(--gold-light);
-  font-size: 18px;
+.closing-year-field .searchable-select-popover {
+  right: 0;
+  left: auto;
+  min-width: 250px;
 }
 
-@media (max-width: 900px) {
+.closing-year-field .searchable-select-trigger strong {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 1050px) {
   .closing-heading-with-period {
     align-items: stretch;
     flex-direction: column;
   }
   .closing-period-control { min-width: 0; width: 100%; }
+}
+
+@media (max-width: 640px) {
+  .closing-period-control { padding: 14px; }
+  .closing-period-fields { grid-template-columns: 1fr 1fr; }
+  .closing-period-field .searchable-select-popover,
+  .closing-year-field .searchable-select-popover {
+    left: 0;
+    right: auto;
+    min-width: 0;
+    width: 100%;
+  }
+}
+
+@media (max-width: 460px) {
+  .closing-period-fields { grid-template-columns: 1fr; }
 }
