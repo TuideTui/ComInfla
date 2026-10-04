@@ -73,7 +73,40 @@ export async function signup(formData: FormData) {
     redirect(`/signup?error=${safeMessage(error.message)}`)
   }
 
-  redirect(`/login?message=${safeMessage('Conta criada. Confira seu email para confirmar o cadastro.')}`)
+  redirect(`/verify-email?email=${safeMessage(email)}`)
+}
+
+export async function resendConfirmation(formData: FormData) {
+  const email = String(formData.get('email') ?? '').trim()
+
+  if (!email) {
+    redirect(`/verify-email?error=${safeMessage('Informe o email usado no cadastro.')}`)
+  }
+
+  const siteUrl = await getSiteUrl()
+  const supabase = await createClient()
+  const { error } = await supabase.auth.resend({
+    type: 'signup',
+    email,
+    options: {
+      emailRedirectTo: `${siteUrl}/auth/callback`,
+    },
+  })
+
+  const emailParam = safeMessage(email)
+
+  if (error) {
+    const rateLimited = /rate|security purposes|seconds/i.test(error.message)
+    const message = rateLimited
+      ? 'Aguarde o contador terminar antes de solicitar um novo envio.'
+      : 'Não foi possível reenviar o email agora. Tente novamente em instantes.'
+
+    redirect(`/verify-email?email=${emailParam}&error=${safeMessage(message)}`)
+  }
+
+  redirect(
+    `/verify-email?email=${emailParam}&message=${safeMessage('Novo email de confirmação solicitado. Confira também a caixa de spam e lixo eletrônico.')}`
+  )
 }
 
 export async function requestPasswordReset(formData: FormData) {
