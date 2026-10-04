@@ -33,6 +33,12 @@ export async function login(formData: FormData) {
   const { error } = await supabase.auth.signInWithPassword({ email, password })
 
   if (error) {
+    if (error.code === 'email_not_confirmed') {
+      redirect(
+        `/verify-email?email=${safeMessage(email)}&error=${safeMessage('Seu email ainda não foi confirmado. Você pode solicitar uma nova confirmação abaixo.')}`
+      )
+    }
+
     redirect(`/login?error=${safeMessage('Email ou senha inválidos.')}`)
   }
 
@@ -73,7 +79,7 @@ export async function signup(formData: FormData) {
     redirect(`/signup?error=${safeMessage(error.message)}`)
   }
 
-  redirect(`/verify-email?email=${safeMessage(email)}`)
+  redirect(`/verify-email?email=${safeMessage(email)}&cooldown=1`)
 }
 
 export async function resendConfirmation(formData: FormData) {
@@ -101,11 +107,11 @@ export async function resendConfirmation(formData: FormData) {
       ? 'Aguarde o contador terminar antes de solicitar um novo envio.'
       : 'Não foi possível reenviar o email agora. Tente novamente em instantes.'
 
-    redirect(`/verify-email?email=${emailParam}&error=${safeMessage(message)}`)
+    redirect(`/verify-email?email=${emailParam}&cooldown=1&error=${safeMessage(message)}`)
   }
 
   redirect(
-    `/verify-email?email=${emailParam}&message=${safeMessage('Novo email de confirmação solicitado. Confira também a caixa de spam e lixo eletrônico.')}`
+    `/verify-email?email=${emailParam}&cooldown=1&message=${safeMessage('Novo email de confirmação solicitado. Confira também a caixa de spam e lixo eletrônico.')}`
   )
 }
 
