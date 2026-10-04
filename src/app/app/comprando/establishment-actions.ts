@@ -58,7 +58,12 @@ function addressPayload(formData: FormData) {
   return { streetName, streetNumber, complement, neighborhood, city, state, postalCode, legacyAddress, addressLine }
 }
 
-async function resolveLocation(formData: FormData, address: ReturnType<typeof addressPayload>, current?: any) {
+async function resolveLocation(
+  formData: FormData,
+  address: ReturnType<typeof addressPayload>,
+  establishmentName: string,
+  current?: any,
+) {
   const requestedSource = text(formData, 'location_source')
   const submittedLatitude = parseCoordinate(formData.get('latitude'), -90, 90)
   const submittedLongitude = parseCoordinate(formData.get('longitude'), -180, 180)
@@ -67,11 +72,18 @@ async function resolveLocation(formData: FormData, address: ReturnType<typeof ad
     return { latitude: null, longitude: null, locationSource: 'disabled' as const, geocoded: false, failed: false }
   }
 
-  if (requestedSource === 'device' && submittedLatitude != null && submittedLongitude != null) {
-    return { latitude: submittedLatitude, longitude: submittedLongitude, locationSource: 'device' as const, geocoded: false, failed: false }
+  if ((requestedSource === 'device' || requestedSource === 'manual') && submittedLatitude != null && submittedLongitude != null) {
+    return {
+      latitude: submittedLatitude,
+      longitude: submittedLongitude,
+      locationSource: requestedSource as 'device' | 'manual',
+      geocoded: false,
+      failed: false,
+    }
   }
 
   const geocodeInput = {
+    establishmentName,
     streetName: address.streetName,
     streetNumber: address.streetNumber,
     legacyAddress: address.addressLine || address.legacyAddress,
@@ -82,18 +94,28 @@ async function resolveLocation(formData: FormData, address: ReturnType<typeof ad
   }
 
   if (hasGeocodableAddress(geocodeInput)) {
+    // Se as coordenadas de um endereço já existem e o usuário apenas salvou sem pedir
+    // uma nova busca, preservamos o ponto. Ao clicar em "Usar endereço no mapa",
+    // o componente limpa as coordenadas e força uma geocodificação nova.
     const unchangedAddress = current
+      && requestedSource === 'address'
+      && submittedLatitude != null
+      && submittedLongitude != null
       && current.location_source === 'address'
       && String(current.address_line ?? '') === address.addressLine
       && String(current.neighborhood ?? '') === address.neighborhood
       && String(current.city ?? '') === address.city
       && String(current.state ?? '') === address.state
       && String(current.postal_code ?? '') === address.postalCode
-      && current.latitude != null
-      && current.longitude != null
 
     if (unchangedAddress) {
-      return { latitude: Number(current.latitude), longitude: Number(current.longitude), locationSource: 'address' as const, geocoded: false, failed: false }
+      return {
+        latitude: submittedLatitude,
+        longitude: submittedLongitude,
+        locationSource: 'address' as const,
+        geocoded: false,
+        failed: false,
+      }
     }
 
     const found = await geocodeBrazilAddress(geocodeInput)
@@ -108,7 +130,7 @@ async function resolveLocation(formData: FormData, address: ReturnType<typeof ad
     return {
       latitude: submittedLatitude,
       longitude: submittedLongitude,
-      locationSource: current?.location_source === 'address' ? 'address' : current?.location_source === 'device' ? 'device' : 'legacy',
+      locationSource: requestedSource === 'manual' ? 'manual' : requestedSource === 'device' ? 'device' : current?.location_source ?? 'legacy',
       geocoded: false,
       failed: false,
     }
@@ -139,7 +161,7 @@ export async function createEstablishmentV2(formData: FormData) {
     redirect(`/app/comprando?error=${message('Já existe um estabelecimento com esse nome e bairro.')}`)
   }
 
-  const location = await resolveLocation(formData, address)
+  const location = await resolveLocation(formData, address, name)
   const { error } = await supabase.from('establishments').insert({
     name,
     establishment_type: establishmentType,
@@ -164,11 +186,13 @@ export async function createEstablishmentV2(formData: FormData) {
 
   const feedback = location.locationSource === 'device'
     ? 'Estabelecimento cadastrado usando sua localização atual.'
-    : location.locationSource === 'address'
-      ? 'Estabelecimento cadastrado e localizado automaticamente no mapa pelo endereço.'
-      : location.failed
-        ? 'Estabelecimento cadastrado, mas não conseguimos localizar esse endereço no mapa. Revise logradouro, cidade, UF e CEP.'
-        : 'Estabelecimento cadastrado. Preencha o endereço depois se quiser exibi-lo no mapa.'
+    : location.locationSource === 'manual'
+      ? 'Estabelecimento cadastrado com a posição ajustada manualmente no mapa.'
+      : location.locationSource === 'address'
+        ? 'Estabelecimento cadastrado e localizado automaticamente no mapa pelo endereço.'
+        : location.failed
+          ? 'Estabelecimento cadastrado, mas não conseguimos localizar esse endereço no mapa. Revise logradouro, cidade, UF e CEP.'
+          : 'Estabelecimento cadastrado. Preencha o endereço depois se quiser exibi-lo no mapa.'
 
   redirect(`/app/comprando?message=${message(feedback)}`)
 }
@@ -191,7 +215,7 @@ export async function updateEstablishmentV2(formData: FormData) {
   const notes = text(formData, 'notes')
   const photoPath = validMediaPath(formData.get('photo_path'), userId)
   const address = addressPayload(formData)
-  const location = await resolveLocation(formData, address, current)
+  const location = await resolveLocation(formData, address, name, current)
 
   const { error } = await supabase.from('establishments').update({
     name,
@@ -224,11 +248,13 @@ export async function updateEstablishmentV2(formData: FormData) {
     ? 'Estabelecimento atualizado e posição do mapa sincronizada com o endereço.'
     : location.locationSource === 'device'
       ? 'Estabelecimento atualizado usando sua localização atual.'
-      : location.locationSource === 'disabled'
-        ? 'Estabelecimento atualizado e removido do mapa.'
-        : location.failed
-          ? 'Estabelecimento atualizado, mas o endereço não pôde ser localizado no mapa.'
-          : 'Estabelecimento atualizado.'
+      : location.locationSource === 'manual'
+        ? 'Estabelecimento atualizado com o ponto ajustado manualmente no mapa.'
+        : location.locationSource === 'disabled'
+          ? 'Estabelecimento atualizado e removido do mapa.'
+          : location.failed
+            ? 'Estabelecimento atualizado, mas o endereço não pôde ser localizado no mapa.'
+            : 'Estabelecimento atualizado.'
 
   redirect(`/app/comprando?message=${message(feedback)}`)
 }
