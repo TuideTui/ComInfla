@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 type Props = {
   initialStreetName?: string | null
@@ -41,10 +41,88 @@ export function AddressLocationFields({
   const [locationSource, setLocationSource] = useState(initialLocationSource ?? '')
   const [status, setStatus] = useState('')
   const [loading, setLoading] = useState(false)
+  const [mapOpen, setMapOpen] = useState(false)
+  const mapContainerRef = useRef<HTMLDivElement>(null)
+  const mapRef = useRef<any>(null)
+  const markerRef = useRef<any>(null)
 
   function markAddressMode() {
-    if (locationSource !== 'device' && locationSource !== 'disabled') setLocationSource('address')
+    if (!['device', 'manual', 'disabled'].includes(locationSource)) setLocationSource('address')
   }
+
+  function setManualPoint(lat: number, lon: number) {
+    setLatitude(lat.toFixed(7))
+    setLongitude(lon.toFixed(7))
+    setLocationSource('manual')
+    setStatus('Ponto ajustado manualmente. Salve o estabelecimento para confirmar a nova posição.')
+  }
+
+  useEffect(() => {
+    if (!mapOpen || !mapContainerRef.current || !latitude || !longitude) return
+    let cancelled = false
+
+    async function mount() {
+      const L: any = await import('leaflet')
+      if (cancelled || !mapContainerRef.current) return
+
+      const lat = Number(latitude)
+      const lon = Number(longitude)
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return
+
+      const map = L.map(mapContainerRef.current, {
+        zoomControl: true,
+        scrollWheelZoom: true,
+      }).setView([lat, lon], 19)
+      mapRef.current = map
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors',
+        maxZoom: 20,
+      }).addTo(map)
+
+      const icon = L.divIcon({
+        className: 'coordinate-picker-icon',
+        html: '<span></span>',
+        iconSize: [26, 26],
+        iconAnchor: [13, 13],
+      })
+
+      const marker = L.marker([lat, lon], { draggable: true, icon }).addTo(map)
+      markerRef.current = marker
+
+      marker.on('dragend', () => {
+        const point = marker.getLatLng()
+        setManualPoint(point.lat, point.lng)
+      })
+
+      map.on('click', (event: any) => {
+        marker.setLatLng(event.latlng)
+        setManualPoint(event.latlng.lat, event.latlng.lng)
+      })
+
+      setTimeout(() => map.invalidateSize(), 0)
+    }
+
+    mount()
+    return () => {
+      cancelled = true
+      markerRef.current = null
+      if (mapRef.current) {
+        mapRef.current.remove()
+        mapRef.current = null
+      }
+    }
+  // O mapa é montado ao abrir. Mudanças de coordenadas são sincronizadas no efeito abaixo.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapOpen])
+
+  useEffect(() => {
+    if (!mapOpen || !mapRef.current || !markerRef.current || !latitude || !longitude) return
+    const lat = Number(latitude)
+    const lon = Number(longitude)
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return
+    markerRef.current.setLatLng([lat, lon])
+  }, [latitude, longitude, mapOpen])
 
   function locateDevice() {
     if (!navigator.geolocation) {
@@ -74,18 +152,27 @@ export function AddressLocationFields({
     setLatitude('')
     setLongitude('')
     setLocationSource('address')
-    setStatus('Ao salvar, o ComInfla tentará localizar este endereço automaticamente no mapa.')
+    setMapOpen(false)
+    setStatus('Ao salvar, o ComInfla fará uma nova busca pelo nome do estabelecimento + endereço.')
   }
 
   function removeFromMap() {
     setLatitude('')
     setLongitude('')
     setLocationSource('disabled')
+    setMapOpen(false)
     setStatus('Este estabelecimento ficará fora do mapa até você escolher uma forma de localização novamente.')
   }
 
   const hasCoordinates = Boolean(latitude && longitude)
   const hasAddress = Boolean(streetName.trim() && city.trim() && state.trim())
+  const sourceLabel = locationSource === 'manual'
+    ? 'Ponto ajustado manualmente'
+    : locationSource === 'device'
+      ? 'Localização do dispositivo'
+      : locationSource === 'address'
+        ? 'Localização encontrada pelo endereço'
+        : ''
 
   return (
     <div className="address-location-block">
@@ -134,11 +221,11 @@ export function AddressLocationFields({
             onChange={(event) => { setComplement(event.target.value); markAddressMode() }}
           />
         </label>
-        <label className="field">
+        <label className="field address-neighborhood">
           <span>Bairro</span>
           <input name="neighborhood" maxLength={120} value={neighborhood} placeholder="Ex.: Tatuapé" onChange={(event) => { setNeighborhood(event.target.value); markAddressMode() }} />
         </label>
-        <label className="field">
+        <label className="field address-city">
           <span>Cidade</span>
           <input name="city" maxLength={120} value={city} placeholder="Ex.: São Paulo" autoComplete="address-level2" onChange={(event) => { setCity(event.target.value); markAddressMode() }} />
         </label>
@@ -161,7 +248,7 @@ export function AddressLocationFields({
             {locationSource === 'disabled'
               ? 'Mapa desativado para este estabelecimento.'
               : hasCoordinates
-                ? `Coordenadas salvas: ${Number(latitude).toFixed(5)}, ${Number(longitude).toFixed(5)}`
+                ? `${sourceLabel ? `${sourceLabel} · ` : ''}${Number(latitude).toFixed(5)}, ${Number(longitude).toFixed(5)}`
                 : hasAddress
                   ? 'Endereço pronto para ser localizado ao salvar.'
                   : 'Preencha logradouro, cidade e UF ou use sua localização atual.'}
@@ -171,11 +258,22 @@ export function AddressLocationFields({
         <div className="location-actions">
           <button type="button" className="ghost-button" onClick={useAddress} disabled={!hasAddress || loading}>Usar endereço no mapa</button>
           <button type="button" className="ghost-button" onClick={locateDevice} disabled={loading}>{loading ? 'Localizando…' : 'Usar minha localização atual'}</button>
+          {hasCoordinates ? <button type="button" className="ghost-button" onClick={() => setMapOpen((value) => !value)}>{mapOpen ? 'Fechar ajuste' : 'Ajustar ponto no mapa'}</button> : null}
           {(hasCoordinates || locationSource === 'address') && locationSource !== 'disabled' ? <button type="button" className="danger-link" onClick={removeFromMap}>Remover do mapa</button> : null}
         </div>
       </div>
 
-      <p className="map-privacy-note">Para localizar um endereço digitado, o ComInfla envia somente os dados do endereço ao serviço de geocodificação do OpenStreetMap no momento em que você salva o estabelecimento.</p>
+      {mapOpen && hasCoordinates ? (
+        <div className="coordinate-adjuster">
+          <div className="coordinate-adjuster-copy">
+            <strong>Ajuste fino da posição</strong>
+            <span>Arraste a bolinha dourada até a entrada do estabelecimento ou clique no ponto exato do mapa.</span>
+          </div>
+          <div ref={mapContainerRef} className="coordinate-adjust-map" aria-label="Ajustar posição do estabelecimento no mapa" />
+        </div>
+      ) : null}
+
+      <p className="map-privacy-note">Para localizar um endereço digitado, o ComInfla envia somente os dados do estabelecimento e do endereço ao serviço de geocodificação do OpenStreetMap no momento em que você salva. Se o resultado não for exato, use “Ajustar ponto no mapa”.</p>
     </div>
   )
 }
