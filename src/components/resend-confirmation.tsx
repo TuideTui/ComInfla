@@ -41,17 +41,24 @@ export function ResendConfirmation({ email }: { email: string }) {
     setRemaining(COOLDOWN_SECONDS)
   }
 
+  const waiting = remaining > 0
+
   return (
-    <form action={resendConfirmation} className="resend-confirmation" onSubmit={restartCooldown}>
+    <form action={resendConfirmation} className="form-stack" onSubmit={restartCooldown}>
       <input type="hidden" name="email" value={email} />
       <button
         className="button button-outline button-full"
         type="submit"
-        disabled={remaining > 0}
+        disabled={waiting}
+        style={{
+          opacity: waiting ? 0.48 : 1,
+          cursor: waiting ? 'not-allowed' : 'pointer',
+          transform: waiting ? 'none' : undefined,
+        }}
       >
-        {remaining > 0 ? `Reenviar em ${formatTime(remaining)}` : 'Reenviar confirmação'}
+        {waiting ? `Reenviar em ${formatTime(remaining)}` : 'Reenviar confirmação'}
       </button>
-      <p className="resend-hint">
+      <p style={{ color: '#77736c', fontSize: 12, lineHeight: 1.5, margin: '-4px 2px 0', textAlign: 'center' }}>
         Para evitar envios repetidos, um novo email só pode ser solicitado após o contador terminar.
       </p>
     </form>
