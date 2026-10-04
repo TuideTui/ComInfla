@@ -7,6 +7,7 @@ type ProductOption = {
   id: string
   name: string
   brand: string | null
+  presentation?: string | null
   base_quantity: number | string
   unit: string
   packaging: string | null
@@ -65,8 +66,8 @@ function moneyFromCents(cents: number) {
 
 function productText(product: ProductOption) {
   const brand = product.brand ? `${product.brand} · ` : ''
-  const quantity = `${Number(product.base_quantity).toLocaleString('pt-BR')} ${product.unit === 'l' ? 'L' : product.unit}`
-  return `${brand}${product.name} · ${quantity}`
+  const presentation = product.presentation ? ` · ${product.presentation}` : ''
+  return `${brand}${product.name}${presentation}`
 }
 
 function blankItem(productId = ''): EditableItem {
@@ -156,7 +157,7 @@ export function PurchaseForm({
 
       <div className="purchase-items">
         <div className="section-inline-heading">
-          <div><strong>Itens da compra</strong><span>Você pode registrar vários produtos no mesmo estabelecimento.</span></div>
+          <div><strong>Itens da compra</strong><span>Agora a quantidade abaixo representa somente quanto você comprou naquele momento.</span></div>
           <button type="button" className="ghost-button" onClick={() => setItems((current) => [...current, blankItem(products[0]?.id ?? '')])}>+ Adicionar item</button>
         </div>
 
@@ -169,7 +170,7 @@ export function PurchaseForm({
                 {products.map((product) => <option value={product.id} key={product.id}>{productText(product)}</option>)}
               </select>
             </label>
-            <label className="field item-qty"><span>Qtd.</span><input inputMode="decimal" value={item.quantity} onChange={(event) => updateItem(item.key, { quantity: event.target.value })} required /></label>
+            <label className="field item-qty"><span>Qtd. comprada</span><input inputMode="decimal" value={item.quantity} onChange={(event) => updateItem(item.key, { quantity: event.target.value })} required /></label>
             <label className="field item-price"><span>Preço unit.</span><div className="money-input"><b>R$</b><input inputMode="decimal" placeholder="0,00" value={item.unitPrice} onChange={(event) => updateItem(item.key, { unitPrice: event.target.value })} required /></div></label>
             <label className="field item-discount"><span>Desconto</span><div className="money-input"><b>R$</b><input inputMode="decimal" placeholder="0,00" value={item.discount} onChange={(event) => updateItem(item.key, { discount: event.target.value, isPromotion: event.target.value.length > 0 ? true : item.isPromotion })} /></div></label>
             <label className="check-field"><input type="checkbox" checked={item.isPromotion} onChange={(event) => updateItem(item.key, { isPromotion: event.target.checked })} /><span>Promoção</span></label>
