@@ -25,8 +25,8 @@
 /* Endereço estruturado */
 .address-location-block {
   display: grid;
-  gap: 14px;
-  padding: 16px;
+  gap: 16px;
+  padding: 18px;
   border: 1px solid #29292a;
   border-radius: 15px;
   background: #101011;
@@ -36,15 +36,17 @@
 .address-section-heading small { color: var(--muted); line-height: 1.45; }
 .address-grid {
   display: grid;
-  grid-template-columns: minmax(220px, 2fr) 100px minmax(150px, 1fr) minmax(150px, 1fr) minmax(150px, 1fr) 72px 120px;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
   gap: 12px;
   align-items: end;
 }
-.address-street { grid-column: span 2; }
-.address-number { grid-column: span 1; }
-.address-complement { grid-column: span 2; }
-.address-state { min-width: 68px; }
-.address-postal { min-width: 115px; }
+.address-street { grid-column: span 5; }
+.address-number { grid-column: span 2; }
+.address-complement { grid-column: span 5; }
+.address-neighborhood { grid-column: span 4; }
+.address-city { grid-column: span 4; }
+.address-state { grid-column: span 1; min-width: 74px; }
+.address-postal { grid-column: span 3; min-width: 128px; }
 .legacy-address-note,
 .map-privacy-note {
   margin: 0;
@@ -56,6 +58,37 @@
 .address-location-block .location-picker { margin-top: 2px; }
 .address-location-block .location-actions { flex-wrap: wrap; justify-content: flex-end; }
 .address-location-block .location-actions .ghost-button { white-space: nowrap; }
+
+.coordinate-adjuster {
+  overflow: hidden;
+  border: 1px solid #302f30;
+  border-radius: 14px;
+  background: #0c0c0d;
+}
+.coordinate-adjuster-copy {
+  display: grid;
+  gap: 4px;
+  padding: 14px 16px;
+  border-bottom: 1px solid #29292a;
+}
+.coordinate-adjuster-copy strong { font-size: 12px; color: var(--gold-light); }
+.coordinate-adjuster-copy span { color: var(--muted); font-size: 11px; line-height: 1.45; }
+.coordinate-adjust-map { width: 100%; height: 360px; background: #111; }
+.coordinate-picker-icon { background: transparent !important; border: 0 !important; }
+.coordinate-picker-icon span {
+  display: block;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #d6a94f;
+  border: 3px solid #fff0c2;
+  box-shadow: 0 0 0 4px rgba(214,169,79,.22), 0 5px 18px rgba(0,0,0,.45);
+  cursor: grab;
+}
+.coordinate-picker-icon span:active { cursor: grabbing; }
+.coordinate-adjust-map .leaflet-control-zoom a { background: #171718; color: var(--text); border-color: #333; }
+.coordinate-adjust-map .leaflet-control-attribution { background: rgba(15,15,16,.8); color: #777; }
+.coordinate-adjust-map .leaflet-control-attribution a { color: var(--gold-light); }
 
 /* Histórico de compras */
 .history-row {
@@ -107,10 +140,14 @@
 .history-insights { margin-top: 8px; }
 
 @media (max-width: 1200px) {
-  .address-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-  .address-street { grid-column: span 2; }
-  .address-number { grid-column: span 1; }
-  .address-complement { grid-column: span 1; }
+  .address-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .address-street { grid-column: span 4; }
+  .address-number { grid-column: span 2; }
+  .address-complement { grid-column: span 3; }
+  .address-neighborhood { grid-column: span 3; }
+  .address-city { grid-column: span 3; }
+  .address-state { grid-column: span 1; }
+  .address-postal { grid-column: span 2; }
   .history-item-head,
   .history-item-line { grid-template-columns: minmax(180px, 1fr) 50px 88px 112px 66px; gap: 9px; }
 }
@@ -118,17 +155,19 @@
 @media (max-width: 900px) {
   .address-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .address-street, .address-complement { grid-column: span 2; }
+  .address-number, .address-neighborhood, .address-city, .address-state, .address-postal { grid-column: span 1; }
   .history-row { grid-template-columns: 88px minmax(0,1fr); }
   .history-actions { grid-column: 2; justify-content: flex-start; padding-top: 8px; }
   .history-item-head { display: none; }
   .history-item-line { grid-template-columns: minmax(160px, 1fr) 52px 88px; }
   .history-item-line em { grid-column: 1 / 3; }
   .history-item-line small { grid-column: 3; grid-row: 2; }
+  .coordinate-adjust-map { height: 320px; }
 }
 
 @media (max-width: 640px) {
   .address-grid { grid-template-columns: 1fr; }
-  .address-street, .address-complement { grid-column: span 1; }
+  .address-street, .address-number, .address-complement, .address-neighborhood, .address-city, .address-state, .address-postal { grid-column: span 1; }
   .address-location-block { padding: 13px; }
   .history-row { grid-template-columns: 1fr; gap: 12px; }
   .history-date { grid-auto-flow: column; justify-content: start; gap: 8px; align-items: center; }
@@ -136,4 +175,5 @@
   .history-title { grid-template-columns: 1fr; gap: 5px; }
   .history-item-line { grid-template-columns: minmax(0,1fr) 46px 82px; }
   .compact-row-actions { flex-direction: row !important; align-items: center !important; }
+  .coordinate-adjust-map { height: 280px; }
 }
