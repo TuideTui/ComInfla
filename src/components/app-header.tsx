@@ -1,11 +1,12 @@
 import Link from 'next/link'
 
-type ActiveSection = 'principal' | 'comprando' | 'analises' | 'fechamento'
+type ActiveSection = 'principal' | 'comprando' | 'analises' | 'mapa' | 'fechamento'
 
 const navItems: Array<{ key: ActiveSection; label: string; href: string }> = [
   { key: 'principal', label: 'Principal', href: '/app' },
   { key: 'comprando', label: 'Comprando', href: '/app/comprando' },
   { key: 'analises', label: 'Análises', href: '/app/analises' },
+  { key: 'mapa', label: 'Mapa', href: '/app/mapa' },
   { key: 'fechamento', label: 'Fechamento', href: '/app/fechamento' },
 ]
 
