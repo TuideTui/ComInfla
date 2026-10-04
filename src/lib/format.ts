@@ -27,12 +27,19 @@ export function formatMonth(value: Date) {
 export function productLabel(product: {
   name: string
   brand?: string | null
+  presentation?: string | null
   base_quantity?: number | string | null
   unit?: string | null
 }) {
-  const quantity = product.base_quantity ? ` ${Number(product.base_quantity).toLocaleString('pt-BR')} ${unitLabel(product.unit)}` : ''
   const brand = product.brand ? `${product.brand} · ` : ''
-  return `${brand}${product.name}${quantity}`
+  if (product.presentation) return `${brand}${product.name} · ${product.presentation}`
+
+  // Mantém compatibilidade com cadastros antigos que já usavam peso/volume,
+  // mas não exibe "1 unit" ou "2 unit", que pode ser confundido com a quantidade comprada.
+  const legacyMeasure = product.unit && product.unit !== 'unit' && product.base_quantity
+    ? ` · ${Number(product.base_quantity).toLocaleString('pt-BR')} ${unitLabel(product.unit)}`
+    : ''
+  return `${brand}${product.name}${legacyMeasure}`
 }
 
 export function unitLabel(unit?: string | null) {
