@@ -22,7 +22,7 @@ export default async function AnalyticsPage() {
   const [{ data: profile }, { data: purchases }, { data: rawItems }] = await Promise.all([
     supabase.from('profiles').select('full_name').eq('id', userId).single(),
     supabase.from('purchases').select('id,purchased_at,total_cents,establishment_id,establishment:establishments(id,name)').order('purchased_at'),
-    supabase.from('purchase_items').select('id,product_id,unit_price_cents,total_cents,quantity,created_at,product:products(id,name,brand,base_quantity,unit,packaging,category:categories(name)),purchase:purchases(id,purchased_at,establishment_id,establishment:establishments(id,name))').order('created_at'),
+    supabase.from('purchase_items').select('id,product_id,unit_price_cents,total_cents,quantity,created_at,product:products(id,name,brand,presentation,base_quantity,unit,packaging,category:categories(name)),purchase:purchases(id,purchased_at,establishment_id,establishment:establishments(id,name))').order('created_at'),
   ])
 
   const items = (rawItems ?? []) as unknown as PriceRow[]
@@ -57,7 +57,6 @@ export default async function AnalyticsPage() {
 
   const productStats = [...productGroups.entries()].map(([id, rows]) => {
     const prices = rows.map((row) => Number(row.unit_price_cents))
-    const sorted = [...rows].sort((a, b) => new Date(a.purchase?.purchased_at ?? a.created_at).getTime() - new Date(b.purchase?.purchased_at ?? b.created_at).getTime())
     const average = prices.reduce((sum, price) => sum + price, 0) / prices.length
     const first = prices[0]
     const latest = prices[prices.length - 1]
@@ -132,7 +131,7 @@ export default async function AnalyticsPage() {
             <section className="premium-card work-card">
               <div className="section-inline-heading"><div><span className="page-kicker">COMPARAÇÃO DE LOCAIS</span><h2>Preço médio por estabelecimento</h2><p>Produtos com histórico em mais de um local aparecem primeiro.</p></div></div>
               <div className="comparison-table">
-                {productStats.filter((stat) => stat.placeAverages.length > 0).slice(0, 10).map((stat) => <div className="comparison-row" key={stat.id}><strong>{stat.product.name}</strong><div>{stat.placeAverages.slice(0, 4).map((place, index) => <span key={`${stat.id}-${place.name}`} className={index === 0 && stat.placeAverages.length > 1 ? 'winner' : ''}><em>{place.name}</em><b>{formatBRL(place.average)}</b></span>)}</div></div>)}
+                {productStats.filter((stat) => stat.placeAverages.length > 0).slice(0, 10).map((stat) => <div className="comparison-row" key={stat.id}><strong>{productLabel(stat.product)}</strong><div>{stat.placeAverages.slice(0, 4).map((place, index) => <span key={`${stat.id}-${place.name}`} className={index === 0 && stat.placeAverages.length > 1 ? 'winner' : ''}><em>{place.name}</em><b>{formatBRL(place.average)}</b></span>)}</div></div>)}
               </div>
             </section>
           </>
