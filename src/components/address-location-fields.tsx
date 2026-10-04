@@ -16,6 +16,16 @@ type Props = {
   legacyAddress?: string | null
 }
 
+type ReverseAddress = {
+  streetName?: string
+  streetNumber?: string
+  neighborhood?: string
+  city?: string
+  state?: string
+  postalCode?: string
+  displayName?: string
+}
+
 export function AddressLocationFields({
   initialStreetName,
   initialStreetNumber,
@@ -45,34 +55,70 @@ export function AddressLocationFields({
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<any>(null)
   const markerRef = useRef<any>(null)
+  const reverseRequestRef = useRef(0)
 
   function markAddressMode() {
     if (!['device', 'manual', 'disabled'].includes(locationSource)) setLocationSource('address')
+  }
+
+  function applyReverseAddress(address: ReverseAddress | null) {
+    if (!address) return false
+    let changed = false
+    if (address.streetName) { setStreetName(address.streetName); changed = true }
+    if (address.streetNumber) { setStreetNumber(address.streetNumber.slice(0, 10)); changed = true }
+    if (address.neighborhood) { setNeighborhood(address.neighborhood); changed = true }
+    if (address.city) { setCity(address.city); changed = true }
+    if (address.state) { setState(address.state.toUpperCase().slice(0, 2)); changed = true }
+    if (address.postalCode) { setPostalCode(address.postalCode.slice(0, 9)); changed = true }
+    return changed
+  }
+
+  async function reverseFillAddress(lat: number, lon: number) {
+    const requestId = ++reverseRequestRef.current
+    setStatus('Ponto ajustado. Identificando o endereço automaticamente…')
+
+    try {
+      const response = await fetch('/api/geocode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'reverse', latitude: lat, longitude: lon }),
+      })
+      const payload = await response.json() as { address?: ReverseAddress | null }
+      if (requestId !== reverseRequestRef.current) return
+
+      const filled = response.ok && applyReverseAddress(payload.address ?? null)
+      setStatus(filled
+        ? 'Ponto ajustado e endereço preenchido automaticamente. Revise os campos e salve o estabelecimento.'
+        : 'Ponto ajustado. Não foi possível identificar todos os dados do endereço; você pode completar os campos manualmente.')
+    } catch {
+      if (requestId !== reverseRequestRef.current) return
+      setStatus('Ponto ajustado. O endereço automático não ficou disponível agora; você pode completar os campos manualmente.')
+    }
   }
 
   function setManualPoint(lat: number, lon: number) {
     setLatitude(lat.toFixed(7))
     setLongitude(lon.toFixed(7))
     setLocationSource('manual')
-    setStatus('Ponto ajustado manualmente. Salve o estabelecimento para confirmar a nova posição.')
+    void reverseFillAddress(lat, lon)
   }
 
   useEffect(() => {
-    if (!mapOpen || !mapContainerRef.current || !latitude || !longitude) return
+    if (!mapOpen || !mapContainerRef.current) return
     let cancelled = false
 
     async function mount() {
       const L: any = await import('leaflet')
       if (cancelled || !mapContainerRef.current) return
 
-      const lat = Number(latitude)
-      const lon = Number(longitude)
-      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return
-
+      const parsedLat = Number(latitude)
+      const parsedLon = Number(longitude)
+      const hasPoint = latitude !== '' && longitude !== '' && Number.isFinite(parsedLat) && Number.isFinite(parsedLon)
+      const center: [number, number] = hasPoint ? [parsedLat, parsedLon] : [-14.235, -51.9253]
       const map = L.map(mapContainerRef.current, {
         zoomControl: true,
         scrollWheelZoom: true,
-      }).setView([lat, lon], 19)
+      }).setView(center, hasPoint ? 19 : 4)
       mapRef.current = map
 
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -87,16 +133,26 @@ export function AddressLocationFields({
         iconAnchor: [13, 13],
       })
 
-      const marker = L.marker([lat, lon], { draggable: true, icon }).addTo(map)
-      markerRef.current = marker
+      function attachMarkerEvents(marker: any) {
+        marker.on('dragend', () => {
+          const point = marker.getLatLng()
+          setManualPoint(point.lat, point.lng)
+        })
+      }
 
-      marker.on('dragend', () => {
-        const point = marker.getLatLng()
-        setManualPoint(point.lat, point.lng)
-      })
+      if (hasPoint) {
+        const marker = L.marker(center, { draggable: true, icon }).addTo(map)
+        markerRef.current = marker
+        attachMarkerEvents(marker)
+      }
 
       map.on('click', (event: any) => {
-        marker.setLatLng(event.latlng)
+        if (!markerRef.current) {
+          markerRef.current = L.marker(event.latlng, { draggable: true, icon }).addTo(map)
+          attachMarkerEvents(markerRef.current)
+        } else {
+          markerRef.current.setLatLng(event.latlng)
+        }
         setManualPoint(event.latlng.lat, event.latlng.lng)
       })
 
@@ -162,6 +218,53 @@ export function AddressLocationFields({
     setLocationSource('disabled')
     setMapOpen(false)
     setStatus('Este estabelecimento ficará fora do mapa até você escolher uma forma de localização novamente.')
+  }
+
+  async function toggleManualMap() {
+    if (mapOpen) {
+      setMapOpen(false)
+      return
+    }
+
+    const hasCurrentCoordinates = Boolean(latitude && longitude)
+    const hasCompleteAddress = Boolean(streetName.trim() && city.trim() && state.trim())
+
+    if (!hasCurrentCoordinates && hasCompleteAddress) {
+      setLoading(true)
+      setStatus('Localizando o endereço para abrir o ajuste manual…')
+      try {
+        const response = await fetch('/api/geocode', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mode: 'forward',
+            streetName,
+            streetNumber,
+            neighborhood,
+            city,
+            state,
+            postalCode,
+          }),
+        })
+        const payload = await response.json() as { result?: { latitude?: number; longitude?: number } | null }
+        if (response.ok && payload.result?.latitude != null && payload.result?.longitude != null) {
+          setLatitude(String(payload.result.latitude))
+          setLongitude(String(payload.result.longitude))
+          setLocationSource('address')
+          setStatus('Endereço usado como ponto inicial. Clique ou arraste a bolinha para ajustar com precisão.')
+        } else {
+          setStatus('Não encontramos o endereço automaticamente. O mapa abrirá afastado; navegue até o local e clique no ponto exato.')
+        }
+      } catch {
+        setStatus('Não conseguimos preparar o ponto pelo endereço. O mapa abrirá afastado; navegue até o local e clique no ponto exato.')
+      } finally {
+        setLoading(false)
+      }
+    } else if (!hasCurrentCoordinates) {
+      setStatus('Navegue pelo mapa e clique no ponto exato do estabelecimento. O ComInfla tentará preencher o endereço automaticamente.')
+    }
+
+    setMapOpen(true)
   }
 
   const hasCoordinates = Boolean(latitude && longitude)
@@ -251,29 +354,29 @@ export function AddressLocationFields({
                 ? `${sourceLabel ? `${sourceLabel} · ` : ''}${Number(latitude).toFixed(5)}, ${Number(longitude).toFixed(5)}`
                 : hasAddress
                   ? 'Endereço pronto para ser localizado ao salvar.'
-                  : 'Preencha logradouro, cidade e UF ou use sua localização atual.'}
+                  : 'Sem posição definida. Você pode ajustar manualmente, usar o endereço ou sua localização atual.'}
           </small>
           {status ? <em>{status}</em> : null}
         </div>
         <div className="location-actions">
+          <button type="button" className="ghost-button" onClick={toggleManualMap} disabled={loading}>{mapOpen ? 'Fechar ajuste' : 'Ajustar ponto no mapa'}</button>
           <button type="button" className="ghost-button" onClick={useAddress} disabled={!hasAddress || loading}>Usar endereço no mapa</button>
-          <button type="button" className="ghost-button" onClick={locateDevice} disabled={loading}>{loading ? 'Localizando…' : 'Usar minha localização atual'}</button>
-          {hasCoordinates ? <button type="button" className="ghost-button" onClick={() => setMapOpen((value) => !value)}>{mapOpen ? 'Fechar ajuste' : 'Ajustar ponto no mapa'}</button> : null}
+          <button type="button" className="ghost-button" onClick={locateDevice} disabled={loading}>{loading ? 'Aguarde…' : 'Usar minha localização atual'}</button>
           {(hasCoordinates || locationSource === 'address') && locationSource !== 'disabled' ? <button type="button" className="danger-link" onClick={removeFromMap}>Remover do mapa</button> : null}
         </div>
       </div>
 
-      {mapOpen && hasCoordinates ? (
+      {mapOpen ? (
         <div className="coordinate-adjuster">
           <div className="coordinate-adjuster-copy">
             <strong>Ajuste fino da posição</strong>
-            <span>Arraste a bolinha dourada até a entrada do estabelecimento ou clique no ponto exato do mapa.</span>
+            <span>{hasCoordinates ? 'Arraste a bolinha dourada até a entrada do estabelecimento ou clique no ponto exato do mapa.' : 'Navegue até o estabelecimento e clique no ponto exato. O ComInfla tentará preencher o endereço automaticamente.'}</span>
           </div>
           <div ref={mapContainerRef} className="coordinate-adjust-map" aria-label="Ajustar posição do estabelecimento no mapa" />
         </div>
       ) : null}
 
-      <p className="map-privacy-note">Para localizar um endereço digitado, o ComInfla envia somente os dados do estabelecimento e do endereço ao serviço de geocodificação do OpenStreetMap no momento em que você salva. Se o resultado não for exato, use “Ajustar ponto no mapa”.</p>
+      <p className="map-privacy-note">Ao localizar pelo endereço ou escolher um ponto manualmente, o ComInfla envia apenas os dados necessários de endereço ou coordenadas ao serviço de geocodificação do OpenStreetMap. No ajuste manual, tentamos preencher logradouro, número, bairro, cidade, UF e CEP automaticamente para você revisar antes de salvar.</p>
     </div>
   )
 }
