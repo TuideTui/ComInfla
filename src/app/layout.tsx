@@ -5,6 +5,7 @@ import './app.css'
 import './insights.css'
 import './catalog.css'
 import './polish.css'
+import './closing-history.css'
 
 export const metadata: Metadata = {
   title: 'ComInfla — Sua inflação pessoal',
