@@ -1,4 +1,5 @@
 type GeocodeInput = {
+  establishmentName?: string | null
   streetName?: string | null
   streetNumber?: string | null
   legacyAddress?: string | null
@@ -31,7 +32,7 @@ async function nominatimSearch(params: URLSearchParams): Promise<GeocodeResult |
   params.set('format', 'jsonv2')
   params.set('limit', '1')
   params.set('countrycodes', 'br')
-  params.set('addressdetails', '0')
+  params.set('addressdetails', '1')
 
   try {
     const response = await fetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`, {
@@ -67,6 +68,7 @@ export function hasGeocodableAddress(input: GeocodeInput) {
 }
 
 export async function geocodeBrazilAddress(input: GeocodeInput): Promise<GeocodeResult | null> {
+  const establishmentName = clean(input.establishmentName)
   const streetName = clean(input.streetName)
   const streetNumber = clean(input.streetNumber)
   const legacyAddress = clean(input.legacyAddress)
@@ -76,6 +78,22 @@ export async function geocodeBrazilAddress(input: GeocodeInput): Promise<Geocode
   const neighborhood = clean(input.neighborhood)
 
   if (!hasGeocodableAddress(input)) return null
+
+  // Primeiro tenta encontrar o POI pelo nome + endereço. Quando o estabelecimento
+  // existe no OpenStreetMap, isso costuma ser mais preciso que a interpolação do número da rua.
+  if (establishmentName) {
+    const poiParts = [
+      establishmentName,
+      streetName ? `${streetName}${streetNumber ? `, ${streetNumber}` : ''}` : legacyAddress,
+      neighborhood,
+      city,
+      state,
+      postalCode,
+      'Brasil',
+    ].filter(Boolean)
+    const poi = await nominatimSearch(new URLSearchParams({ q: poiParts.join(', ') }))
+    if (poi) return poi
+  }
 
   if (streetName) {
     const structured = new URLSearchParams()
@@ -97,6 +115,5 @@ export async function geocodeBrazilAddress(input: GeocodeInput): Promise<Geocode
     'Brasil',
   ].filter(Boolean)
 
-  const freeform = new URLSearchParams({ q: freeformParts.join(', ') })
-  return nominatimSearch(freeform)
+  return nominatimSearch(new URLSearchParams({ q: freeformParts.join(', ') }))
 }
