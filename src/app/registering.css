@@ -1,0 +1,33 @@
+/* Cadastrando — catálogo e rotina */
+.registering-management-grid { align-items: start; }
+.registering-catalog-grid { align-items: start; }
+.registering-catalog-grid .compact-list { min-height: 260px; }
+.catalog-count {
+  min-width: 32px;
+  height: 32px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(214,169,79,.25);
+  border-radius: 999px;
+  background: rgba(214,169,79,.06);
+  color: var(--gold-light) !important;
+  font-size: 11px !important;
+  font-weight: 800;
+}
+.setup-cta { margin-top: 20px; }
+
+/* A navegação ganhou Cadastrando e Comparar; mantemos respiro sem apertar os rótulos. */
+.app-nav { gap: clamp(24px, 3vw, 48px); }
+
+@media (max-width: 1180px) and (min-width: 981px) {
+  .app-header { gap: 36px; }
+  .app-nav { gap: 22px; font-size: 12px; }
+  .brand { font-size: 23px; }
+}
+
+@media (max-width: 820px) {
+  .registering-management-grid,
+  .registering-catalog-grid { grid-template-columns: 1fr; }
+}
