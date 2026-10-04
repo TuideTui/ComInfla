@@ -3,8 +3,9 @@ import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { AppHeader } from '@/components/app-header'
 import { MediaUpload } from '@/components/media-upload'
-import { LocationPicker } from '@/components/location-picker'
-import { deleteOrArchiveEstablishment, updateEstablishment } from '@/app/app/comprando/actions'
+import { AddressLocationFields } from '@/components/address-location-fields'
+import { deleteOrArchiveEstablishment } from '@/app/app/comprando/actions'
+import { updateEstablishmentV2 } from '@/app/app/comprando/establishment-actions'
 
 const establishmentTypes = [
   ['supermarket', 'Supermercado'], ['market', 'Mercado'], ['bakery', 'Padaria'], ['restaurant', 'Restaurante'],
@@ -16,6 +17,16 @@ async function signedMediaUrl(supabase: any, path?: string | null) {
   if (!path) return null
   const { data } = await supabase.storage.from('cominfla-media').createSignedUrl(path, 60 * 60)
   return data?.signedUrl ?? null
+}
+
+function parseLegacyAddress(address?: string | null) {
+  if (!address) return { streetName: '', streetNumber: '' }
+  const head = address.split(' - ')[0].trim()
+  const comma = head.lastIndexOf(',')
+  if (comma < 0) return { streetName: head, streetNumber: '' }
+  const possibleNumber = head.slice(comma + 1).trim()
+  if (!/^[0-9A-Za-z/.-]{1,10}$/.test(possibleNumber)) return { streetName: head, streetNumber: '' }
+  return { streetName: head.slice(0, comma).trim(), streetNumber: possibleNumber }
 }
 
 export default async function EditEstablishmentPage({
@@ -34,7 +45,7 @@ export default async function EditEstablishmentPage({
 
   const [{ data: profile }, { data: establishment }, { count: purchaseCount }] = await Promise.all([
     supabase.from('profiles').select('full_name').eq('id', userId).single(),
-    supabase.from('establishments').select('id,name,establishment_type,visit_frequency,address_line,neighborhood,city,state,postal_code,latitude,longitude,notes,photo_path,archived_at').eq('id', id).single(),
+    supabase.from('establishments').select('id,name,establishment_type,visit_frequency,address_line,street_name,street_number,address_complement,neighborhood,city,state,postal_code,latitude,longitude,location_source,notes,photo_path,archived_at').eq('id', id).single(),
     supabase.from('purchases').select('*', { head: true, count: 'exact' }).eq('establishment_id', id),
   ])
 
@@ -42,6 +53,12 @@ export default async function EditEstablishmentPage({
   const firstName = profile?.full_name?.split(' ')[0] || 'você'
   const photoUrl = await signedMediaUrl(supabase, establishment.photo_path)
   const error = typeof query.error === 'string' ? query.error : undefined
+  const legacy = !establishment.street_name ? parseLegacyAddress(establishment.address_line) : { streetName: '', streetNumber: '' }
+  const initialLocationSource = establishment.location_source === 'disabled'
+    ? 'disabled'
+    : establishment.location_source === 'address'
+      ? 'address'
+      : ''
 
   return (
     <main className="app-shell">
@@ -55,19 +72,29 @@ export default async function EditEstablishmentPage({
         {error ? <div className="notice notice-error page-notice">{error}</div> : null}
 
         <section className="premium-card edit-card">
-          <form action={updateEstablishment} className="data-form edit-form">
+          <form action={updateEstablishmentV2} className="data-form edit-form">
             <input type="hidden" name="establishment_id" value={establishment.id} />
             <MediaUpload name="photo_path" userId={userId} folder="establishments" initialPath={establishment.photo_path} initialUrl={photoUrl} label="Foto do estabelecimento" />
             <div className="form-grid-2">
               <label className="field"><span>Nome *</span><input name="name" maxLength={160} defaultValue={establishment.name} required /></label>
               <label className="field"><span>Tipo</span><select name="establishment_type" defaultValue={establishment.establishment_type}>{establishmentTypes.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
               <label className="field"><span>Frequência</span><select name="visit_frequency" defaultValue={establishment.visit_frequency}><option value="frequent">Frequente</option><option value="occasional">Ocasional</option><option value="one_time">Visita única</option></select></label>
-              <label className="field"><span>Bairro</span><input name="neighborhood" maxLength={120} defaultValue={establishment.neighborhood ?? ''} /></label>
-              <label className="field"><span>Cidade</span><input name="city" maxLength={120} defaultValue={establishment.city ?? ''} /></label>
-              <label className="field"><span>UF</span><input name="state" maxLength={2} defaultValue={establishment.state ?? ''} /></label>
             </div>
-            <label className="field"><span>Endereço</span><input name="address_line" maxLength={240} defaultValue={establishment.address_line ?? ''} /></label>
-            <LocationPicker initialLatitude={establishment.latitude} initialLongitude={establishment.longitude} />
+
+            <AddressLocationFields
+              initialStreetName={establishment.street_name ?? legacy.streetName}
+              initialStreetNumber={establishment.street_number ?? legacy.streetNumber}
+              initialComplement={establishment.address_complement}
+              initialNeighborhood={establishment.neighborhood}
+              initialCity={establishment.city}
+              initialState={establishment.state}
+              initialPostalCode={establishment.postal_code}
+              initialLatitude={establishment.latitude}
+              initialLongitude={establishment.longitude}
+              initialLocationSource={initialLocationSource}
+              legacyAddress={establishment.address_line}
+            />
+
             <label className="field"><span>Observação</span><textarea name="notes" rows={3} defaultValue={establishment.notes ?? ''} /></label>
             <div className="edit-actions"><Link className="ghost-button" href="/app/comprando">Cancelar</Link><button className="button button-primary" type="submit">Salvar estabelecimento</button></div>
           </form>
