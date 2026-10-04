@@ -7,6 +7,7 @@ import './catalog.css'
 import './polish.css'
 import './closing-history.css'
 import './compare.css'
+import './registering.css'
 
 export const metadata: Metadata = {
   title: 'ComInfla — Sua inflação pessoal',
