@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { AppHeader } from '@/components/app-header'
 import { MediaUpload } from '@/components/media-upload'
 import { AddressLocationFields } from '@/components/address-location-fields'
+import { RegistrationModal } from '@/components/registration-modal'
 import { createProduct } from './actions'
 import { createEstablishment } from './establishment-actions'
 
@@ -71,12 +72,13 @@ export default async function RegisteringPage({ searchParams }: { searchParams: 
         {errorText ? <div className="notice notice-error page-notice">{errorText}</div> : null}
         {messageText ? <div className="notice notice-success page-notice">{messageText}</div> : null}
 
-        <div className="management-grid registering-management-grid">
-          <details className="premium-card manage-card" open={!products?.length}>
-            <summary>
-              <div><span className="page-kicker">CATÁLOGO</span><strong>Novo produto</strong></div>
-              <span>+</span>
-            </summary>
+        <div className="registering-launch-grid">
+          <RegistrationModal
+            kind="product"
+            kicker="CATÁLOGO"
+            title="Cadastrar produto"
+            description="Adicione um item ao seu catálogo para começar a acompanhar preços e histórico."
+          >
             <form action={createProduct} className="data-form">
               <MediaUpload name="photo_path" userId={userId} folder="products" label="Foto do produto" />
               <div className="form-grid-2">
@@ -92,13 +94,14 @@ export default async function RegisteringPage({ searchParams }: { searchParams: 
               <label className="field"><span>Observação</span><textarea name="notes" rows={2} placeholder="Detalhes que ajudam a diferenciar o produto." /></label>
               <button className="button button-primary" type="submit">Cadastrar produto</button>
             </form>
-          </details>
+          </RegistrationModal>
 
-          <details className="premium-card manage-card" open={!establishments?.length}>
-            <summary>
-              <div><span className="page-kicker">SUA ROTINA</span><strong>Novo estabelecimento</strong></div>
-              <span>+</span>
-            </summary>
+          <RegistrationModal
+            kind="establishment"
+            kicker="SUA ROTINA"
+            title="Cadastrar estabelecimento"
+            description="Cadastre um local da sua rotina e, se quiser, posicione-o no mapa."
+          >
             <form action={createEstablishment} className="data-form">
               <MediaUpload name="photo_path" userId={userId} folder="establishments" label="Foto do estabelecimento" />
               <div className="form-grid-2">
@@ -110,7 +113,7 @@ export default async function RegisteringPage({ searchParams }: { searchParams: 
               <label className="field"><span>Observação</span><textarea name="notes" rows={2} placeholder="Detalhes úteis sobre este local." /></label>
               <button className="button button-primary" type="submit">Cadastrar estabelecimento</button>
             </form>
-          </details>
+          </RegistrationModal>
         </div>
 
         <div className="catalog-preview-grid registering-catalog-grid">
