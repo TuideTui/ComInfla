@@ -5,8 +5,9 @@ import { AppHeader } from '@/components/app-header'
 import { PurchaseForm } from '@/components/purchase-form'
 import { PurchaseInsightModal } from '@/components/purchase-insight-modal'
 import { MediaUpload } from '@/components/media-upload'
-import { LocationPicker } from '@/components/location-picker'
-import { createEstablishment, createProduct, deletePurchase } from './actions'
+import { AddressLocationFields } from '@/components/address-location-fields'
+import { createProduct, deletePurchase } from './actions'
+import { createEstablishmentV2 } from './establishment-actions'
 import { formatBRL, formatDateTime, productLabel } from '@/lib/format'
 import { insightDescription } from '@/lib/insights'
 
@@ -36,7 +37,7 @@ export default async function ShoppingPage({ searchParams }: { searchParams: Pro
     supabase.from('profiles').select('full_name').eq('id', userId).single(),
     supabase.from('categories').select('id,name,parent_id').is('archived_at', null).order('name'),
     supabase.from('products').select('id,name,brand,presentation,base_quantity,unit,packaging,subcategory,category_id,photo_path,created_at').is('archived_at', null).order('created_at', { ascending: false }),
-    supabase.from('establishments').select('id,name,establishment_type,visit_frequency,address_line,neighborhood,city,state,latitude,longitude,photo_path,created_at').is('archived_at', null).order('visit_frequency').order('name'),
+    supabase.from('establishments').select('id,name,establishment_type,visit_frequency,address_line,street_name,street_number,address_complement,neighborhood,city,state,postal_code,latitude,longitude,location_source,photo_path,created_at').is('archived_at', null).order('visit_frequency').order('name'),
     supabase.from('purchases').select('id,purchased_at,total_cents,payment_method,notes,establishment_name_snapshot,establishment:establishments(id,name,neighborhood),items:purchase_items(id,product_id,quantity,unit_price_cents,total_cents,is_promotion,product_snapshot,product:products(id,name,brand,presentation,base_quantity,unit,packaging),insights:insight_events(id,title,message,severity,insight_type,metric_value,metadata))').order('purchased_at', { ascending: false }).limit(30),
     supabase.from('purchase_items').select('product_id,unit_price_cents'),
   ])
@@ -120,18 +121,14 @@ export default async function ShoppingPage({ searchParams }: { searchParams: Pro
 
           <details className="premium-card manage-card" open={!establishments?.length}>
             <summary><div><span className="page-kicker">SUA ROTINA</span><strong>Novo estabelecimento</strong></div><span>+</span></summary>
-            <form action={createEstablishment} className="data-form">
+            <form action={createEstablishmentV2} className="data-form">
               <MediaUpload name="photo_path" userId={userId} folder="establishments" label="Foto do estabelecimento" />
               <div className="form-grid-2">
                 <label className="field"><span>Nome *</span><input name="name" maxLength={160} placeholder="Ex.: Mercado perto de casa" required /></label>
                 <label className="field"><span>Tipo</span><select name="establishment_type">{establishmentTypes.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
                 <label className="field"><span>Frequência</span><select name="visit_frequency" defaultValue="frequent"><option value="frequent">Frequente</option><option value="occasional">Ocasional</option><option value="one_time">Visita única</option></select></label>
-                <label className="field"><span>Bairro</span><input name="neighborhood" maxLength={120} /></label>
-                <label className="field"><span>Cidade</span><input name="city" maxLength={120} /></label>
-                <label className="field"><span>UF</span><input name="state" maxLength={2} placeholder="SP" /></label>
               </div>
-              <label className="field"><span>Endereço</span><input name="address_line" maxLength={240} placeholder="Rua, número e complemento" /></label>
-              <LocationPicker />
+              <AddressLocationFields />
               <label className="field"><span>Observação</span><textarea name="notes" rows={2} /></label>
               <button className="button button-primary" type="submit">Cadastrar estabelecimento</button>
             </form>
@@ -139,7 +136,7 @@ export default async function ShoppingPage({ searchParams }: { searchParams: Pro
         </div>
 
         <section className="premium-card work-card history-section">
-          <div className="section-inline-heading"><div><span className="page-kicker">SEU HISTÓRICO</span><h2>Compras recentes</h2><p>Preço, local e indicadores que foram identificados no momento do registro.</p></div></div>
+          <div className="section-inline-heading"><div><span className="page-kicker">SEU HISTÓRICO</span><h2>Compras recentes</h2><p>Preço, local e indicadores identificados em cada compra.</p></div></div>
           {purchases?.length ? (
             <div className="purchase-history">
               {purchases.map((purchase: any) => (
@@ -147,6 +144,7 @@ export default async function ShoppingPage({ searchParams }: { searchParams: Pro
                   <div className="history-date"><strong>{formatDateTime(purchase.purchased_at).split(' ')[0]}</strong><span>{formatDateTime(purchase.purchased_at).split(' ').slice(1).join(' ')}</span></div>
                   <div className="history-main">
                     <div className="history-title"><strong>{purchase.establishment?.name ?? purchase.establishment_name_snapshot ?? 'Local não informado'}</strong><span>{purchase.items?.length ?? 0} {purchase.items?.length === 1 ? 'item' : 'itens'} · {formatBRL(purchase.total_cents)}</span></div>
+                    <div className="history-item-head"><span>Produto</span><span>Qtd.</span><span>Preço unit.</span><span>Comparação</span><span>Status</span></div>
                     <div className="history-items">
                       {(purchase.items ?? []).map((item: any) => {
                         const product = item.product ?? item.product_snapshot
@@ -154,7 +152,13 @@ export default async function ShoppingPage({ searchParams }: { searchParams: Pro
                         const average = avg?.count ? avg.total / avg.count : 0
                         const delta = average ? ((Number(item.unit_price_cents) / average) - 1) * 100 : 0
                         return <div className="history-product-block" key={item.id}>
-                          <div className="history-item-line"><span>{productLabel(product)}</span><b>{formatBRL(item.unit_price_cents)}</b>{avg && avg.count > 1 ? <em className={delta > 5 ? 'delta-up' : delta < -5 ? 'delta-down' : ''}>{delta > 0 ? '+' : ''}{delta.toFixed(1).replace('.', ',')}% vs. média</em> : <em>primeiro histórico</em>}{item.is_promotion ? <small>promoção</small> : null}</div>
+                          <div className="history-item-line">
+                            <span>{productLabel(product)}</span>
+                            <span className="history-qty">× {Number(item.quantity).toLocaleString('pt-BR')}</span>
+                            <b>{formatBRL(item.unit_price_cents)}</b>
+                            {avg && avg.count > 1 ? <em className={delta > 5 ? 'delta-up' : delta < -5 ? 'delta-down' : ''}>{delta > 0 ? '+' : ''}{delta.toFixed(1).replace('.', ',')}% vs. média</em> : <em>primeiro histórico</em>}
+                            {item.is_promotion ? <small>promoção</small> : <small className="history-status-neutral">—</small>}
+                          </div>
                           {item.insights?.length ? <div className="history-insights">{item.insights.map((insight: any) => <span className={`history-insight-pill ${insight.severity}`} title={insightDescription(insight)} key={insight.id}>{insight.title}</span>)}</div> : null}
                         </div>
                       })}
