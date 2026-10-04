@@ -13,13 +13,13 @@ Legenda:
 | Requisito | Status | Implementação atual |
 |---|---:|---|
 | Principal / resumo autenticado | ✅ | Dashboard real com gasto mensal, produtos, locais, última compra, local mais usado e insights |
-| RF-001 Cadastrar produto | ✅ | Nome, marca, categoria, subcategoria, quantidade, unidade, embalagem, código de barras e observação |
-| RF-002 Diferenciar variações | ✅ | Produto/quantidade/unidade são registros independentes |
-| RF-003 Possíveis duplicados | 🟡 | Bloqueio inicial para nome + marca + quantidade + unidade equivalentes; similaridade avançada virá depois |
-| RF-005 Cadastrar estabelecimento | ✅ | Tipo, frequência, endereço, bairro, cidade, UF e observação |
+| RF-001 Cadastrar produto | ✅ | Nome, marca, categoria, subcategoria, apresentação, embalagem, código de barras, foto e observação; quantidade comprada não fica no cadastro do produto |
+| RF-002 Diferenciar variações | ✅ | Campo de apresentação diferencia versões como 350 ml, 600 ml ou 2 L sem confundir com quantidade comprada |
+| RF-003 Possíveis duplicados | 🟡 | Bloqueio inicial para nome + marca + apresentação equivalentes; similaridade avançada virá depois |
+| RF-005 Cadastrar estabelecimento | ✅ | Tipo, frequência, endereço, bairro, cidade, UF, foto, coordenadas opcionais e observação |
 | RF-006 Tipo de estabelecimento | ✅ | Tipos definidos no cadastro |
-| RF-007 Localização no mapa | ⏳ | Banco já possui latitude/longitude; mapa fica para segunda fase |
-| RF-008 Registrar compra | ✅ | Produto, local, data/hora, quantidade, preço, desconto, promoção, pagamento e observação |
+| RF-007 Localização no mapa | ✅ | Coordenadas podem ser obtidas com permissão do navegador e o local passa a aparecer no mapa |
+| RF-008 Registrar compra | ✅ | Produto, local, data/hora, quantidade comprada, preço, desconto, promoção, pagamento e observação |
 | RF-009 Compra com múltiplos produtos | ✅ | Formulário dinâmico com vários itens |
 | RF-010 Registro rápido | ✅ | Produtos e estabelecimentos existentes podem ser reutilizados |
 | RF-011 Acima da média | ✅ | Trigger no PostgreSQL + popup/histórico |
@@ -47,12 +47,12 @@ Legenda:
 | RF-030–032 Inflação pessoal | ⏳ | Banco preparado; metodologia será implementada com histórico mínimo |
 | RF-033 Inflação oficial | 🔭 | Terceira fase |
 | RF-034 Gastos por categoria | ✅ | Visualização por categoria |
-| RF-035 Gastos por estabelecimento | 🟡 | Dados já calculáveis; visualização dedicada será ampliada |
+| RF-035 Gastos por estabelecimento | 🟡 | Dados já calculáveis; mapa também resume gasto e quantidade por local |
 | RF-036 Ticket médio | ✅ | Ticket médio geral no painel de análises |
 | RF-037 Produto mais comprado | ✅ | Indicador de produto com maior número de registros |
 | RF-038 Maior gasto acumulado por produto | ⏳ | Próxima ampliação das análises |
 | RF-039–041 Outliers e maiores variações | 🟡 | Parte dos insights já existe; motor de outliers completo fica na segunda fase |
-| RF-042–044 Mapa | ⏳ | Segunda fase |
+| RF-042–044 Mapa | 🟡 | Aba Mapa funcional com estabelecimentos geolocalizados, gasto, quantidade de compras e última compra; agrupamento por bairro/mapa de calor ficam para depois |
 
 ## Fechamento
 
@@ -85,18 +85,19 @@ Legenda:
 | RF-065–066 Dados colaborativos e privacidade | 🔭 |
 | RF-067 Perfil | 🟡 |
 | RF-068 Categorias personalizadas | 🟡 Banco preparado, UI pendente |
-| RF-069 Gerenciar estabelecimentos | 🟡 Cadastro pronto; edição/arquivo ainda pendentes |
-| RF-070 Gerenciar produtos | 🟡 Cadastro pronto; edição/arquivo/unificação ainda pendentes |
+| RF-069 Gerenciar estabelecimentos | ✅ Edição, foto, endereço, localização, frequência, arquivamento e exclusão de locais sem histórico |
+| RF-070 Gerenciar produtos | 🟡 Edição, foto, categoria, apresentação, arquivamento e exclusão implementados; unificação de duplicados ainda pendente |
 | RF-071 Busca global | ⏳ |
 | RF-072 Produtos frequentes | ⏳ |
 | RF-073 Estabelecimentos frequentes | 🟡 Frequência é cadastrada e influencia ordenação inicial |
 | RF-074 Exportar histórico | ⏳ Segunda fase |
-| RF-075 Exclusão e portabilidade | 🟡 Compra já pode ser excluída; demais exclusões entram em Configurações |
+| RF-075 Exclusão e portabilidade | 🟡 Compras, produtos sem histórico e estabelecimentos sem histórico podem ser excluídos; conta/histórico total ainda pendentes |
 
 ## Requisitos não funcionais
 
 - ✅ Next.js responsivo para desktop/tablet/mobile, com fluxo de compra adaptado.
 - ✅ Supabase Auth e PostgreSQL com RLS nas tabelas privadas.
+- ✅ Fotos em bucket privado do Supabase Storage com políticas por usuário.
 - ✅ Valores monetários armazenados em centavos inteiros.
 - ✅ Dados por usuário protegidos por `auth.uid()`.
 - ✅ Vercel ligada à branch `main`, com deploy automático.
@@ -109,6 +110,6 @@ Legenda:
 2. RF-023/RF-024 — gráfico temporal e estatísticas completas de produto.
 3. RF-035/RF-038 — análises por estabelecimento e gasto acumulado por produto.
 4. RF-049 — categoria com maior aumento no fechamento.
-5. RF-069/RF-070 — gerenciamento completo de produtos e estabelecimentos.
+5. RF-070 — unificação de produtos duplicados.
 6. Security Baseline v1.
-7. Segunda fase: cesta pessoal → inflação pessoal → economia potencial → mapa → exportação.
+7. Segunda fase principal: cesta pessoal → inflação pessoal → economia potencial → mapa avançado → exportação.
