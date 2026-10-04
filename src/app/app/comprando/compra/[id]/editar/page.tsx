@@ -20,7 +20,7 @@ export default async function EditPurchasePage({
 
   const [{ data: profile }, { data: products }, { data: establishments }, { data: purchase }] = await Promise.all([
     supabase.from('profiles').select('full_name').eq('id', userId).single(),
-    supabase.from('products').select('id,name,brand,base_quantity,unit,packaging').is('archived_at', null).order('name'),
+    supabase.from('products').select('id,name,brand,presentation,base_quantity,unit,packaging').is('archived_at', null).order('name'),
     supabase.from('establishments').select('id,name,neighborhood,visit_frequency').is('archived_at', null).order('visit_frequency').order('name'),
     supabase.from('purchases').select('id,establishment_id,purchased_at,payment_method,notes,items:purchase_items(id,product_id,quantity,unit_price_cents,discount_cents,is_promotion,notes)').eq('id', id).single(),
   ])
