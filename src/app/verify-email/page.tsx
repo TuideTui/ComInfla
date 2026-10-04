@@ -18,29 +18,57 @@ export default async function VerifyEmailPage({
 }) {
   const params = await searchParams
   const email = params.email?.trim() ?? ''
+  const startCooldown = params.cooldown === '1'
 
   return (
     <AuthShell>
-      <div className="auth-card premium-card reveal verify-card">
-        <div className="verification-icon" aria-hidden="true">✦</div>
-        <div className="auth-heading verify-heading">
+      <div className="auth-card premium-card reveal">
+        <div
+          aria-hidden="true"
+          style={{
+            width: 54,
+            height: 54,
+            display: 'grid',
+            placeItems: 'center',
+            borderRadius: 16,
+            border: '1px solid rgba(214,169,79,.45)',
+            background: 'rgba(214,169,79,.08)',
+            color: '#f0cf87',
+            fontSize: 24,
+            marginBottom: 24,
+          }}
+        >
+          ✦
+        </div>
+
+        <div className="auth-heading">
           <h1>Confirme seu email</h1>
           <p>
             {email
-              ? <>Enviamos uma confirmação para <strong>{maskEmail(email)}</strong>. Abra a mensagem para ativar sua conta.</>
+              ? <>Enviamos uma confirmação para <strong style={{ color: '#f0cf87' }}>{maskEmail(email)}</strong>. Abra a mensagem para ativar sua conta.</>
               : 'Abra o email usado no cadastro e confirme sua conta para continuar.'}
           </p>
         </div>
 
         <Notice error={params.error} message={params.message} />
 
-        <div className="verify-help">
-          <span>Não encontrou a mensagem?</span>
-          <p>Confira também Spam, Lixo Eletrônico e a aba Outros do seu provedor de email.</p>
+        <div
+          style={{
+            padding: '16px 18px',
+            borderRadius: 14,
+            background: '#101011',
+            border: '1px solid #2a2927',
+            marginBottom: 20,
+          }}
+        >
+          <strong style={{ display: 'block', fontSize: 13, marginBottom: 6 }}>Não encontrou a mensagem?</strong>
+          <p style={{ color: '#9d9a94', fontSize: 13, lineHeight: 1.55, margin: 0 }}>
+            Confira também Spam, Lixo Eletrônico e a aba Outros do seu provedor de email.
+          </p>
         </div>
 
         {email ? (
-          <ResendConfirmation email={email} />
+          <ResendConfirmation email={email} startCooldown={startCooldown} />
         ) : (
           <Link href="/signup" className="button button-outline button-full">Voltar ao cadastro</Link>
         )}
