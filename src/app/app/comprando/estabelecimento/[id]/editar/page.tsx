@@ -54,11 +54,7 @@ export default async function EditEstablishmentPage({
   const photoUrl = await signedMediaUrl(supabase, establishment.photo_path)
   const error = typeof query.error === 'string' ? query.error : undefined
   const legacy = !establishment.street_name ? parseLegacyAddress(establishment.address_line) : { streetName: '', streetNumber: '' }
-  const initialLocationSource = establishment.location_source === 'disabled'
-    ? 'disabled'
-    : establishment.location_source === 'address'
-      ? 'address'
-      : ''
+  const initialLocationSource = establishment.location_source ?? ''
 
   return (
     <main className="app-shell">
