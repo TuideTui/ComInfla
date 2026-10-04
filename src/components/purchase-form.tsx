@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { createPurchase, updatePurchase } from '@/app/app/comprando/actions'
+import { SearchableSelect, type SearchableOption } from '@/components/searchable-select'
 
 type ProductOption = {
   id: string
@@ -70,6 +71,12 @@ function productText(product: ProductOption) {
   return `${brand}${product.name}${presentation}`
 }
 
+function frequencyText(value: string) {
+  if (value === 'frequent') return 'Frequente'
+  if (value === 'one_time') return 'Visita única'
+  return 'Ocasional'
+}
+
 function blankItem(productId = ''): EditableItem {
   return { key: `${Date.now()}-${Math.random()}`, productId, quantity: '1', unitPrice: '', discount: '', isPromotion: false, notes: '' }
 }
@@ -101,6 +108,20 @@ export function PurchaseForm({
       : [blankItem(products[0]?.id ?? '')]
   )
 
+  const establishmentOptions = useMemo<SearchableOption[]>(() => establishments.map((item) => ({
+    value: item.id,
+    label: item.name,
+    meta: [item.neighborhood, frequencyText(item.visit_frequency)].filter(Boolean).join(' · '),
+    searchText: `${item.name} ${item.neighborhood ?? ''} ${frequencyText(item.visit_frequency)}`,
+  })), [establishments])
+
+  const productOptions = useMemo<SearchableOption[]>(() => products.map((product) => ({
+    value: product.id,
+    label: productText(product),
+    meta: product.packaging || undefined,
+    searchText: `${product.name} ${product.brand ?? ''} ${product.presentation ?? ''} ${product.packaging ?? ''}`,
+  })), [products])
+
   const total = useMemo(() => items.reduce((sum, item) => {
     const quantity = Number(item.quantity.replace(',', '.')) || 0
     return sum + Math.max(0, parseMoney(item.unitPrice) * quantity - parseMoney(item.discount))
@@ -129,14 +150,20 @@ export function PurchaseForm({
       <input type="hidden" name="items_json" value={JSON.stringify(jsonItems)} />
 
       <div className="purchase-main-grid">
-        <label className="field">
+        <div className="field">
           <span>Estabelecimento</span>
-          <select name="establishment_id" value={establishmentId} onChange={(event) => setEstablishmentId(event.target.value)} required>
-            {establishments.map((item) => (
-              <option key={item.id} value={item.id}>{item.name}{item.neighborhood ? ` · ${item.neighborhood}` : ''}</option>
-            ))}
-          </select>
-        </label>
+          <SearchableSelect
+            name="establishment_id"
+            value={establishmentId}
+            onChange={setEstablishmentId}
+            options={establishmentOptions}
+            placeholder="Selecione um estabelecimento"
+            searchPlaceholder="Buscar estabelecimento..."
+            emptyMessage="Nenhum estabelecimento encontrado."
+            ariaLabel="Selecionar estabelecimento"
+            required
+          />
+        </div>
         <label className="field">
           <span>Data e horário</span>
           <input type="datetime-local" value={purchasedAt} onChange={(event) => setPurchasedAt(event.target.value)} required />
@@ -164,12 +191,18 @@ export function PurchaseForm({
         {items.map((item, index) => (
           <div className="purchase-item-row" key={item.key}>
             <span className="item-number">{String(index + 1).padStart(2, '0')}</span>
-            <label className="field item-product"><span>Produto</span>
-              <select value={item.productId} onChange={(event) => updateItem(item.key, { productId: event.target.value })} required>
-                <option value="" disabled>Selecione</option>
-                {products.map((product) => <option value={product.id} key={product.id}>{productText(product)}</option>)}
-              </select>
-            </label>
+            <div className="field item-product">
+              <span>Produto</span>
+              <SearchableSelect
+                value={item.productId}
+                onChange={(productId) => updateItem(item.key, { productId })}
+                options={productOptions}
+                placeholder="Selecione um produto"
+                searchPlaceholder="Buscar produto, marca ou apresentação..."
+                emptyMessage="Nenhum produto encontrado."
+                ariaLabel={`Selecionar produto do item ${index + 1}`}
+              />
+            </div>
             <label className="field item-qty"><span>Qtd. comprada</span><input inputMode="decimal" value={item.quantity} onChange={(event) => updateItem(item.key, { quantity: event.target.value })} required /></label>
             <label className="field item-price"><span>Preço unit.</span><div className="money-input"><b>R$</b><input inputMode="decimal" placeholder="0,00" value={item.unitPrice} onChange={(event) => updateItem(item.key, { unitPrice: event.target.value })} required /></div></label>
             <label className="field item-discount"><span>Desconto</span><div className="money-input"><b>R$</b><input inputMode="decimal" placeholder="0,00" value={item.discount} onChange={(event) => updateItem(item.key, { discount: event.target.value, isPromotion: event.target.value.length > 0 ? true : item.isPromotion })} /></div></label>
