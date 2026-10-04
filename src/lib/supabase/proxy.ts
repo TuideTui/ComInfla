@@ -8,7 +8,9 @@ function isPublicPath(pathname: string) {
 }
 
 function copyAuthState(source: NextResponse, target: NextResponse) {
-  target.cookies.setAll(source.cookies.getAll())
+  source.cookies.getAll().forEach((cookie) => {
+    target.cookies.set(cookie)
+  })
 
   for (const header of ['cache-control', 'expires', 'pragma']) {
     const value = source.headers.get(header)
