@@ -12,28 +12,35 @@ function formatTime(seconds: number) {
   return `${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
 }
 
-export function ResendConfirmation({ email }: { email: string }) {
+export function ResendConfirmation({ email, startCooldown = false }: { email: string; startCooldown?: boolean }) {
   const storageKey = useMemo(() => `cominfla:confirmation-resend:${email.toLowerCase()}`, [email])
-  const [remaining, setRemaining] = useState(COOLDOWN_SECONDS)
+  const [remaining, setRemaining] = useState(startCooldown ? COOLDOWN_SECONDS : 0)
 
   useEffect(() => {
     const now = Date.now()
     const storedUntil = Number(window.localStorage.getItem(storageKey) ?? 0)
-    const cooldownUntil = storedUntil > now ? storedUntil : now + COOLDOWN_SECONDS * 1000
+    let cooldownUntil = storedUntil > now ? storedUntil : 0
 
-    if (storedUntil <= now) {
+    if (!cooldownUntil && startCooldown) {
+      cooldownUntil = now + COOLDOWN_SECONDS * 1000
       window.localStorage.setItem(storageKey, String(cooldownUntil))
     }
 
     const updateRemaining = () => {
-      const seconds = Math.max(0, Math.ceil((cooldownUntil - Date.now()) / 1000))
+      const seconds = cooldownUntil
+        ? Math.max(0, Math.ceil((cooldownUntil - Date.now()) / 1000))
+        : 0
       setRemaining(seconds)
+
+      if (seconds === 0 && cooldownUntil) {
+        window.localStorage.removeItem(storageKey)
+      }
     }
 
     updateRemaining()
     const timer = window.setInterval(updateRemaining, 1000)
     return () => window.clearInterval(timer)
-  }, [storageKey])
+  }, [startCooldown, storageKey])
 
   function restartCooldown() {
     const cooldownUntil = Date.now() + COOLDOWN_SECONDS * 1000
