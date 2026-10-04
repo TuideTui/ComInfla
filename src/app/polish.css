@@ -1,0 +1,139 @@
+/* Ajustes finos de UX e alinhamento */
+
+.ghost-button,
+.button,
+.danger-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  vertical-align: middle;
+  text-decoration: none;
+}
+
+.ghost-button { min-height: 40px; }
+.edit-actions { min-height: 46px; align-items: center; }
+.edit-actions > .ghost-button,
+.edit-actions > .button { min-height: 44px; }
+.compact-row-actions { align-self: center; }
+.compact-row-actions .ghost-button { min-width: 62px; }
+.history-actions { align-items: center; justify-content: flex-end; padding-top: 0; }
+.history-actions form { display: flex; align-items: center; margin: 0; }
+.history-actions .ghost-button,
+.history-actions .danger-link { min-height: 40px; display: inline-flex; align-items: center; justify-content: center; }
+
+/* Endereço estruturado */
+.address-location-block {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid #29292a;
+  border-radius: 15px;
+  background: #101011;
+}
+.address-section-heading { display: flex; justify-content: space-between; gap: 18px; }
+.address-section-heading > div { display: grid; gap: 5px; }
+.address-section-heading small { color: var(--muted); line-height: 1.45; }
+.address-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 2fr) 100px minmax(150px, 1fr) minmax(150px, 1fr) minmax(150px, 1fr) 72px 120px;
+  gap: 12px;
+  align-items: end;
+}
+.address-street { grid-column: span 2; }
+.address-number { grid-column: span 1; }
+.address-complement { grid-column: span 2; }
+.address-state { min-width: 68px; }
+.address-postal { min-width: 115px; }
+.legacy-address-note,
+.map-privacy-note {
+  margin: 0;
+  color: #77736c;
+  font-size: 10px;
+  line-height: 1.5;
+}
+.legacy-address-note { color: #a29d93; }
+.address-location-block .location-picker { margin-top: 2px; }
+.address-location-block .location-actions { flex-wrap: wrap; justify-content: flex-end; }
+.address-location-block .location-actions .ghost-button { white-space: nowrap; }
+
+/* Histórico de compras */
+.history-row {
+  grid-template-columns: 104px minmax(0, 1fr) 116px;
+  gap: 24px;
+  align-items: start;
+  padding: 22px 0;
+}
+.history-main { min-width: 0; }
+.history-title {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 14px;
+}
+.history-title > strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.history-title > span { white-space: nowrap; }
+.history-item-head,
+.history-item-line {
+  display: grid;
+  grid-template-columns: minmax(210px, 1fr) 58px 92px 126px 72px;
+  gap: 12px;
+  align-items: center;
+}
+.history-item-head {
+  color: #66625c;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: .055em;
+  padding: 0 0 7px;
+  border-bottom: 1px solid #252526;
+}
+.history-items { gap: 0; }
+.history-items > .history-product-block {
+  display: block;
+  border-bottom: 1px solid rgba(41,41,42,.7);
+  padding: 10px 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.history-items > .history-product-block:last-child { border-bottom: 0; }
+.history-item-line > span:first-child { color: #c7c3bc; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.history-item-line b { text-align: left; color: var(--text); }
+.history-item-line em { white-space: nowrap; }
+.history-qty { color: #8f8b83; font-variant-numeric: tabular-nums; }
+.history-item-line small { justify-self: start; white-space: nowrap; }
+.history-status-neutral { background: transparent !important; color: #5f5c57 !important; padding-left: 0 !important; }
+.history-insights { margin-top: 8px; }
+
+@media (max-width: 1200px) {
+  .address-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .address-street { grid-column: span 2; }
+  .address-number { grid-column: span 1; }
+  .address-complement { grid-column: span 1; }
+  .history-item-head,
+  .history-item-line { grid-template-columns: minmax(180px, 1fr) 50px 88px 112px 66px; gap: 9px; }
+}
+
+@media (max-width: 900px) {
+  .address-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .address-street, .address-complement { grid-column: span 2; }
+  .history-row { grid-template-columns: 88px minmax(0,1fr); }
+  .history-actions { grid-column: 2; justify-content: flex-start; padding-top: 8px; }
+  .history-item-head { display: none; }
+  .history-item-line { grid-template-columns: minmax(160px, 1fr) 52px 88px; }
+  .history-item-line em { grid-column: 1 / 3; }
+  .history-item-line small { grid-column: 3; grid-row: 2; }
+}
+
+@media (max-width: 640px) {
+  .address-grid { grid-template-columns: 1fr; }
+  .address-street, .address-complement { grid-column: span 1; }
+  .address-location-block { padding: 13px; }
+  .history-row { grid-template-columns: 1fr; gap: 12px; }
+  .history-date { grid-auto-flow: column; justify-content: start; gap: 8px; align-items: center; }
+  .history-actions { grid-column: 1; }
+  .history-title { grid-template-columns: 1fr; gap: 5px; }
+  .history-item-line { grid-template-columns: minmax(0,1fr) 46px 82px; }
+  .compact-row-actions { flex-direction: row !important; align-items: center !important; }
+}
