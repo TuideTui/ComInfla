@@ -1,0 +1,44 @@
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--gold-light);
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -.04em;
+  white-space: nowrap;
+}
+
+.brand-mark {
+  width: 42px;
+  height: 42px;
+  object-fit: contain;
+  flex: 0 0 auto;
+  filter: drop-shadow(0 6px 14px rgba(214,169,79,.14));
+}
+
+.landing-brand .brand-mark,
+.auth-brand .brand-mark {
+  width: 46px;
+  height: 46px;
+}
+
+.app-brand .brand-mark {
+  width: 40px;
+  height: 40px;
+}
+
+@media (max-width: 620px) {
+  .brand {
+    gap: 8px;
+    font-size: 23px;
+  }
+
+  .brand-mark,
+  .landing-brand .brand-mark,
+  .auth-brand .brand-mark,
+  .app-brand .brand-mark {
+    width: 36px;
+    height: 36px;
+  }
+}
