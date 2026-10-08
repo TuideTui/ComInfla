@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import 'leaflet/dist/leaflet.css'
 import './globals.css'
+import './brand.css'
 import './app.css'
 import './insights.css'
 import './catalog.css'
