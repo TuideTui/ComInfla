@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { Brand } from './brand'
 
 type ActiveSection = 'principal' | 'cadastrando' | 'comprando' | 'analises' | 'comparar' | 'mapa' | 'fechamento'
 
@@ -17,7 +18,7 @@ export function AppHeader({ active, firstName }: { active: ActiveSection; firstN
 
   return (
     <header className="app-header premium-card">
-      <Link href="/app" className="brand">ComInfla</Link>
+      <Brand href="/app" className="app-brand" />
       <nav className="app-nav" aria-label="Navegação da plataforma">
         {navItems.map((item) => (
           <Link key={item.key} className={active === item.key ? 'active' : ''} href={item.href}>
