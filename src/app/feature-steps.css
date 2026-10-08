@@ -1,0 +1,56 @@
+.landing-feature-card .feature-illustration i {
+  background: #2c2b29;
+  opacity: .78;
+  transition: transform .24s ease, background .24s ease, box-shadow .24s ease, opacity .24s ease;
+}
+
+/* A mesma escadinha em todos os cards: começo, meio e evolução. */
+.landing-feature-card .feature-illustration i:nth-child(1) { height: 34px; }
+.landing-feature-card .feature-illustration i:nth-child(2) { height: 54px; }
+.landing-feature-card .feature-illustration i:nth-child(3) { height: 74px; }
+
+/* 01 Registre → primeira barra acesa. */
+.landing-feature-card .feature-register i:nth-child(1) {
+  background: linear-gradient(180deg, var(--gold-light), var(--gold));
+  opacity: 1;
+  box-shadow: 0 0 0 1px rgba(240,207,135,.12), 0 8px 24px rgba(214,169,79,.2);
+}
+
+/* 02 Compare → segunda barra acesa. */
+.landing-feature-card .feature-compare i:nth-child(2) {
+  background: linear-gradient(180deg, var(--gold-light), var(--gold));
+  opacity: 1;
+  box-shadow: 0 0 0 1px rgba(240,207,135,.12), 0 8px 24px rgba(214,169,79,.2);
+}
+
+/* 03 Entenda → terceira barra acesa. */
+.landing-feature-card .feature-understand i:nth-child(3) {
+  background: linear-gradient(180deg, var(--gold-light), var(--gold));
+  opacity: 1;
+  box-shadow: 0 0 0 1px rgba(240,207,135,.12), 0 8px 24px rgba(214,169,79,.2);
+}
+
+/* Garante que as barras não ativas continuem discretas, mesmo sobre regras antigas. */
+.landing-feature-card .feature-register i:nth-child(2),
+.landing-feature-card .feature-register i:nth-child(3),
+.landing-feature-card .feature-compare i:nth-child(1),
+.landing-feature-card .feature-compare i:nth-child(3),
+.landing-feature-card .feature-understand i:nth-child(1),
+.landing-feature-card .feature-understand i:nth-child(2) {
+  background: #2c2b29;
+  box-shadow: none;
+  opacity: .78;
+}
+
+/* Microinteração: apenas a etapa ativa ganha vida quando o card recebe hover. */
+.landing-feature-card:hover .feature-register i:nth-child(1),
+.landing-feature-card:hover .feature-compare i:nth-child(2),
+.landing-feature-card:hover .feature-understand i:nth-child(3) {
+  transform: translateY(-4px) scaleY(1.04);
+  box-shadow: 0 0 0 1px rgba(240,207,135,.18), 0 10px 30px rgba(214,169,79,.3);
+}
+
+/* A linha de base também ganha uma leve presença dourada para reforçar o conceito de gráfico. */
+.landing-feature-card .feature-illustration::after {
+  background: linear-gradient(90deg, rgba(214,169,79,.08), rgba(214,169,79,.3), rgba(214,169,79,.08));
+}
