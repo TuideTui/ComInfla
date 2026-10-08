@@ -14,7 +14,6 @@
   height: 42px;
   object-fit: contain;
   flex: 0 0 auto;
-  filter: drop-shadow(0 6px 14px rgba(214,169,79,.14));
 }
 
 .landing-brand .brand-mark,
