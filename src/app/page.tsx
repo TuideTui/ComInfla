@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { Brand } from '../components/brand'
 
 const bars = [28, 36, 44, 52, 61, 70, 78, 88]
 
@@ -8,7 +9,7 @@ export default function HomePage() {
       <div className="ambient ambient-a" />
       <div className="ambient ambient-b" />
       <header className="site-header container">
-        <Link href="/" className="brand">ComInfla</Link>
+        <Brand href="/" className="landing-brand" />
         <nav className="landing-nav" aria-label="Navegação principal">
           <a href="#como-funciona">Como funciona</a>
           <a href="#recursos">Recursos</a>
