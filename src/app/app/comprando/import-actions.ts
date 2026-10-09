@@ -54,6 +54,10 @@ export async function registerImportedPurchase(payload: ImportedPurchasePayloadT
     return { ok: false, message: 'Informe e confirme manualmente a data e o horário da compra.' }
   }
 
+  if (!payload.payment_method?.trim()) {
+    return { ok: false, message: 'Informe a forma de pagamento da compra.' }
+  }
+
   const safePayload: ImportedPurchasePayloadType = {
     ...payload,
     new_establishment: undefined,
