@@ -21,6 +21,11 @@ import { LandingLiveEffects } from '../components/landing-live-effects'
 export const metadata: Metadata = {
   title: 'ComInfla — Sua inflação pessoal',
   description: 'Acompanhe preços, entenda sua inflação pessoal e transforme compras do dia a dia em inteligência sobre seu custo de vida.',
+  icons: {
+    icon: [{ url: '/cominfla-logo.png?v=4', type: 'image/png' }],
+    shortcut: '/cominfla-logo.png?v=4',
+    apple: '/cominfla-logo.png?v=4',
+  },
 }
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
