@@ -2,39 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
-
-export type ImportedPurchasePayload = {
-  fingerprint: string
-  establishment_id?: string | null
-  new_establishment?: { name: string; type?: string; city?: string; state?: string }
-  purchased_at?: string
-  payment_method?: string
-  notes?: string
-  source_kind?: 'nfce' | 'delivery' | 'receipt' | 'unknown'
-  source_document_key?: string
-  merchant_name?: string
-  merchant_cnpj?: string
-  extra_fees_cents?: number
-  order_discount_cents?: number
-  receipt_total_cents?: number
-  file_count?: number
-  metadata?: Record<string, unknown>
-  extraction_metadata?: Record<string, unknown>
-  items: Array<{
-    product_id?: string | null
-    name?: string
-    brand?: string
-    presentation?: string | null
-    unit?: string
-    packaging?: string | null
-    barcode?: string | null
-    quantity: number
-    unit_price_cents: number
-    discount_cents?: number
-    is_promotion?: boolean
-    notes?: string | null
-  }>
-}
+import type { ImportedPurchasePayload, ImportedPurchaseResult } from '@/lib/receipt-import-types'
 
 async function authenticatedClient() {
   const supabase = await createClient()
@@ -54,11 +22,11 @@ function refreshConsumptionPages() {
   revalidatePath('/app/cadastrando')
 }
 
-export async function checkReceiptFingerprint(fingerprint: string) {
+export async function checkReceiptFingerprint(fingerprint: string): Promise<{ duplicate: boolean; purchaseId: string | null }> {
   const clean = String(fingerprint ?? '').trim()
-  if (!clean) return { duplicate: false, purchaseId: null as string | null }
+  if (!clean) return { duplicate: false, purchaseId: null }
   const { supabase, userId } = await authenticatedClient()
-  if (!userId) return { duplicate: false, purchaseId: null as string | null }
+  if (!userId) return { duplicate: false, purchaseId: null }
 
   const { data } = await supabase
     .from('receipt_imports')
@@ -69,7 +37,7 @@ export async function checkReceiptFingerprint(fingerprint: string) {
   return { duplicate: Boolean(data?.purchase_id), purchaseId: data?.purchase_id ?? null }
 }
 
-export async function registerImportedPurchase(payload: ImportedPurchasePayload) {
+export async function registerImportedPurchase(payload: ImportedPurchasePayload): Promise<ImportedPurchaseResult> {
   const { supabase, userId } = await authenticatedClient()
   if (!userId) return { ok: false, message: 'Sua sessão expirou. Entre novamente para registrar a compra.' }
 
