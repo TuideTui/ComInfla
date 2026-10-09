@@ -15,6 +15,7 @@ import './registering.css'
 import './registering-modal.css'
 import './app-performance.css'
 import './account-settings-v2.css'
+import './account-mobile.css'
 import './auth-transition.css'
 import { LandingLiveEffects } from '../components/landing-live-effects'
 
