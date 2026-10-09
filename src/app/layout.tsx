@@ -18,6 +18,7 @@ import './account-settings-v2.css'
 import './account-mobile.css'
 import './auth-transition.css'
 import './landing-mobile.css'
+import './receipt-import.css'
 import { LandingLiveEffects } from '../components/landing-live-effects'
 
 export const metadata: Metadata = {
