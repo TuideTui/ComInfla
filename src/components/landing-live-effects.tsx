@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect } from 'react'
-import { usePathname } from 'next/navigation'
 
 const inflationValues = ['+8,7%', '+2,1%', '+5,8%', '+0,5%', '+11,3%', '+3,4%']
 
@@ -14,83 +13,73 @@ const insightMessages = [
   'Seu histórico já revela uma tendência de alta nos preços.',
 ]
 
-function rollElement(element: HTMLElement, nextText: string) {
+function animateSwap(element: HTMLElement, nextText: string, distance: number) {
   const out = element.animate(
     [
       { opacity: 1, transform: 'translateY(0)' },
-      { opacity: 0, transform: 'translateY(-16px)' },
+      { opacity: 0, transform: `translateY(-${distance}px)` },
     ],
-    { duration: 230, easing: 'cubic-bezier(.4,0,.2,1)', fill: 'forwards' },
+    { duration: 240, easing: 'cubic-bezier(.4,0,.2,1)', fill: 'forwards' },
   )
 
-  out.finished.then(() => {
-    element.textContent = nextText
-    element.animate(
-      [
-        { opacity: 0, transform: 'translateY(16px)' },
-        { opacity: 1, transform: 'translateY(0)' },
-      ],
-      { duration: 320, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'forwards' },
-    )
-  }).catch(() => undefined)
-}
-
-function swapInsight(element: HTMLElement, nextText: string) {
-  const out = element.animate(
-    [
-      { opacity: 1, transform: 'translateY(0)' },
-      { opacity: 0, transform: 'translateY(-7px)' },
-    ],
-    { duration: 260, easing: 'ease', fill: 'forwards' },
-  )
-
-  out.finished.then(() => {
-    element.textContent = nextText
-    element.animate(
-      [
-        { opacity: 0, transform: 'translateY(7px)' },
-        { opacity: 1, transform: 'translateY(0)' },
-      ],
-      { duration: 420, easing: 'ease', fill: 'forwards' },
-    )
-  }).catch(() => undefined)
+  out.finished
+    .then(() => {
+      element.textContent = nextText
+      element.animate(
+        [
+          { opacity: 0, transform: `translateY(${distance}px)` },
+          { opacity: 1, transform: 'translateY(0)' },
+        ],
+        { duration: 340, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'forwards' },
+      )
+    })
+    .catch(() => undefined)
 }
 
 export function LandingLiveEffects() {
-  const pathname = usePathname()
-
   useEffect(() => {
-    if (pathname !== '/') return
+    let numberTimer: number | undefined
+    let insightTimer: number | undefined
+    let startTimer: number | undefined
+    let attempts = 0
 
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    if (reduceMotion) return
+    const start = () => {
+      const number = document.querySelector<HTMLElement>('.landing-hero-card .hero-number')
+      const insight = document.querySelector<HTMLElement>('.landing-hero-card .hero-card-insight strong')
+      const hero = document.querySelector<HTMLElement>('.landing-hero')
 
-    const number = document.querySelector<HTMLElement>('.landing-hero-card .hero-number')
-    const insight = document.querySelector<HTMLElement>('.landing-hero-card .hero-card-insight strong')
+      if (!number || !insight || !hero) {
+        attempts += 1
+        if (attempts < 20) startTimer = window.setTimeout(start, 150)
+        return
+      }
 
-    if (!number || !insight) return
+      hero.classList.add('landing-motion-ready')
+      number.setAttribute('aria-live', 'polite')
+      insight.setAttribute('aria-live', 'polite')
 
-    number.setAttribute('aria-live', 'polite')
-    insight.setAttribute('aria-live', 'polite')
+      let numberIndex = 0
+      let insightIndex = 0
 
-    let numberIndex = 0
-    let insightIndex = 0
+      numberTimer = window.setInterval(() => {
+        numberIndex = (numberIndex + 1) % inflationValues.length
+        animateSwap(number, inflationValues[numberIndex], 18)
+      }, 3000)
 
-    const numberTimer = window.setInterval(() => {
-      numberIndex = (numberIndex + 1) % inflationValues.length
-      rollElement(number, inflationValues[numberIndex])
-    }, 3000)
+      insightTimer = window.setInterval(() => {
+        insightIndex = (insightIndex + 1) % insightMessages.length
+        animateSwap(insight, insightMessages[insightIndex], 8)
+      }, 10000)
+    }
 
-    const insightTimer = window.setInterval(() => {
-      insightIndex = (insightIndex + 1) % insightMessages.length
-      swapInsight(insight, insightMessages[insightIndex])
-    }, 10000)
+    startTimer = window.setTimeout(start, 250)
 
     return () => {
-      window.clearInterval(numberTimer)
-      window.clearInterval(insightTimer)
+      if (startTimer) window.clearTimeout(startTimer)
+      if (numberTimer) window.clearInterval(numberTimer)
+      if (insightTimer) window.clearInterval(insightTimer)
     }
-  }, [pathname])
+  }, [])
 
   return null
 }
