@@ -3,10 +3,30 @@
   min-height: 100vh;
   padding: 32px;
   background: radial-gradient(circle at 82% -10%, rgba(214,169,79,.08), transparent 28%), var(--bg);
+  opacity: 0;
+  animation: appShellEnter .58s cubic-bezier(.18,.78,.22,1) forwards;
+}
+
+@keyframes appShellEnter {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+
+.app-header-persistent {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  background: rgba(20,20,21,.97) !important;
+  opacity: 0;
+  animation: appHeaderEnter .48s .04s cubic-bezier(.18,.78,.22,1) forwards;
+}
+
+@keyframes appHeaderEnter {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: none; }
 }
 
 .app-page-host {
-  transition: opacity .16s ease, transform .16s cubic-bezier(.4,0,.2,1);
+  transition: opacity .26s cubic-bezier(.4,0,.2,1), transform .26s cubic-bezier(.4,0,.2,1), filter .26s ease;
 }
 
 .app-page-host .app-shell {
@@ -15,57 +35,59 @@
   background: transparent;
 }
 
-/* Durante a migração, páginas antigas ainda podem renderizar o próprio header. O layout compartilhado é a única versão visível. */
+/* Durante a migração, páginas antigas ainda podem renderizar o próprio header. O layout compartilhado é o único visível. */
 .app-page-host .app-header {
   display: none;
 }
 
-.app-header-persistent {
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  background: rgba(20,20,21,.97) !important;
+.app-nav a {
+  transition: color .2s ease, opacity .2s ease;
 }
 
 .app-nav a.pending {
   color: var(--gold-light);
+  opacity: .72;
 }
 
-/* Saída curta da tela atual antes da troca de rota. */
+/* Saída real da tela atual antes do router.push. */
 body.app-route-leaving .app-page-host {
   opacity: 0;
-  transform: translateY(-6px) scale(.997);
+  transform: translateY(-10px) scale(.994);
+  filter: saturate(.82);
   pointer-events: none;
 }
 
-/* Entrada da nova tela: próxima da linguagem visual usada em login/cadastro. */
+/* Entrada da nova tela. O template remonta a cada rota e reinicia esta animação. */
 .app-route-transition {
-  animation: appPageIn .44s cubic-bezier(.18,.78,.22,1) both;
+  opacity: 0;
+  animation: appPageIn .52s cubic-bezier(.16,.82,.2,1) forwards;
 }
 
 @keyframes appPageIn {
-  from { opacity: 0; transform: translateY(12px) scale(.997); }
-  72% { opacity: 1; }
-  to { opacity: 1; transform: none; }
+  0% { opacity: 0; transform: translateY(16px) scale(.996); }
+  58% { opacity: 1; }
+  100% { opacity: 1; transform: none; }
 }
 
+/* Heading e blocos principais entram em sequência, como nas telas de autenticação. */
 .app-route-transition .app-content > * {
   opacity: 0;
-  animation: appSectionIn .42s cubic-bezier(.18,.78,.22,1) both;
+  animation: appSectionIn .5s cubic-bezier(.16,.82,.2,1) forwards;
 }
 
-.app-route-transition .app-content > *:nth-child(1) { animation-delay: .05s; }
-.app-route-transition .app-content > *:nth-child(2) { animation-delay: .09s; }
-.app-route-transition .app-content > *:nth-child(3) { animation-delay: .13s; }
-.app-route-transition .app-content > *:nth-child(4) { animation-delay: .17s; }
-.app-route-transition .app-content > *:nth-child(5) { animation-delay: .21s; }
-.app-route-transition .app-content > *:nth-child(n+6) { animation-delay: .24s; }
+.app-route-transition .app-content > *:nth-child(1) { animation-delay: .07s; }
+.app-route-transition .app-content > *:nth-child(2) { animation-delay: .12s; }
+.app-route-transition .app-content > *:nth-child(3) { animation-delay: .17s; }
+.app-route-transition .app-content > *:nth-child(4) { animation-delay: .22s; }
+.app-route-transition .app-content > *:nth-child(5) { animation-delay: .27s; }
+.app-route-transition .app-content > *:nth-child(n+6) { animation-delay: .3s; }
 
 @keyframes appSectionIn {
-  from { opacity: 0; transform: translateY(10px); }
+  from { opacity: 0; transform: translateY(13px); }
   to { opacity: 1; transform: none; }
 }
 
-/* Cards entram em sequência dentro das principais grades. */
+/* Cards também surgem em ondas curtas dentro das grades. */
 .app-route-transition .metric-grid > *,
 .app-route-transition .quick-context-grid > *,
 .app-route-transition .registering-launch-grid > *,
@@ -73,7 +95,7 @@ body.app-route-leaving .app-page-host {
 .app-route-transition .analytics-grid > *,
 .app-route-transition .map-place-grid > * {
   opacity: 0;
-  animation: appCardIn .4s cubic-bezier(.18,.78,.22,1) both;
+  animation: appCardIn .46s cubic-bezier(.16,.82,.2,1) forwards;
 }
 
 .app-route-transition .metric-grid > *:nth-child(1),
@@ -81,26 +103,26 @@ body.app-route-leaving .app-page-host {
 .app-route-transition .registering-launch-grid > *:nth-child(1),
 .app-route-transition .catalog-preview-grid > *:nth-child(1),
 .app-route-transition .analytics-grid > *:nth-child(1),
-.app-route-transition .map-place-grid > *:nth-child(1) { animation-delay: .14s; }
+.app-route-transition .map-place-grid > *:nth-child(1) { animation-delay: .18s; }
 
 .app-route-transition .metric-grid > *:nth-child(2),
 .app-route-transition .quick-context-grid > *:nth-child(2),
 .app-route-transition .registering-launch-grid > *:nth-child(2),
 .app-route-transition .catalog-preview-grid > *:nth-child(2),
 .app-route-transition .analytics-grid > *:nth-child(2),
-.app-route-transition .map-place-grid > *:nth-child(2) { animation-delay: .19s; }
+.app-route-transition .map-place-grid > *:nth-child(2) { animation-delay: .23s; }
 
 .app-route-transition .metric-grid > *:nth-child(3),
 .app-route-transition .quick-context-grid > *:nth-child(3),
-.app-route-transition .map-place-grid > *:nth-child(3) { animation-delay: .24s; }
+.app-route-transition .map-place-grid > *:nth-child(3) { animation-delay: .28s; }
 
 .app-route-transition .metric-grid > *:nth-child(4),
-.app-route-transition .map-place-grid > *:nth-child(4) { animation-delay: .29s; }
+.app-route-transition .map-place-grid > *:nth-child(4) { animation-delay: .33s; }
 
-.app-route-transition .map-place-grid > *:nth-child(n+5) { animation-delay: .32s; }
+.app-route-transition .map-place-grid > *:nth-child(n+5) { animation-delay: .36s; }
 
 @keyframes appCardIn {
-  from { opacity: 0; transform: translateY(8px) scale(.992); }
+  from { opacity: 0; transform: translateY(10px) scale(.99); }
   to { opacity: 1; transform: none; }
 }
 
@@ -245,7 +267,10 @@ body.registration-modal-open .registration-modal-backdrop {
   .registration-modal { max-height: calc(100dvh - 20px) !important; }
 }
 
+/* Mesmo com movimento reduzido, mantemos um fade curto para não haver corte seco. */
 @media (prefers-reduced-motion: reduce) {
+  .app-shared-shell,
+  .app-header-persistent,
   .app-route-transition,
   .app-route-transition .app-content > *,
   .app-route-transition .metric-grid > *,
@@ -253,14 +278,25 @@ body.registration-modal-open .registration-modal-backdrop {
   .app-route-transition .registering-launch-grid > *,
   .app-route-transition .catalog-preview-grid > *,
   .app-route-transition .analytics-grid > *,
-  .app-route-transition .map-place-grid > *,
+  .app-route-transition .map-place-grid > * {
+    transform: none !important;
+    animation-duration: .22s !important;
+    animation-delay: 0ms !important;
+  }
+
+  .app-page-host {
+    transition: opacity .2s ease !important;
+  }
+
+  body.app-route-leaving .app-page-host {
+    transform: none !important;
+    filter: none !important;
+  }
+
   .skeleton::after,
   .registration-modal-backdrop,
   .registration-modal {
-    animation-duration: .01ms !important;
+    animation-duration: .12s !important;
     animation-delay: 0ms !important;
-    animation-iteration-count: 1 !important;
   }
-
-  .app-page-host { transition-duration: .01ms !important; }
 }
