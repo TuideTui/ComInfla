@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { PurchaseForm } from '@/components/purchase-form'
 import { PurchaseInsightModal } from '@/components/purchase-insight-modal'
+import { ReceiptImporter } from '@/components/receipt-importer'
 import { deletePurchase } from './actions'
 import { formatBRL, formatDateTime, productLabel } from '@/lib/format'
 import { insightDescription } from '@/lib/insights'
@@ -14,7 +15,7 @@ export default async function ShoppingPage({ searchParams }: { searchParams: Pro
 
   const purchaseId = typeof params.purchase === 'string' ? params.purchase : ''
   const [{ data: products }, { data: establishments }, { data: purchases }, { data: priceStats }] = await Promise.all([
-    supabase.from('products').select('id,name,brand,presentation,base_quantity,unit,packaging,subcategory,category_id').is('archived_at', null).order('name'),
+    supabase.from('products').select('id,name,brand,presentation,base_quantity,unit,packaging,subcategory,category_id,barcode').is('archived_at', null).order('name'),
     supabase.from('establishments').select('id,name,establishment_type,visit_frequency,neighborhood,city,state').is('archived_at', null).order('visit_frequency').order('name'),
     supabase.from('purchases').select('id,purchased_at,total_cents,payment_method,notes,establishment_name_snapshot,establishment:establishments(id,name,neighborhood),items:purchase_items(id,product_id,quantity,unit_price_cents,total_cents,is_promotion,product_snapshot,product:products(id,name,brand,presentation,base_quantity,unit,packaging),insights:insight_events(id,title,message,severity,insight_type,metric_value,metadata))').order('purchased_at', { ascending: false }).limit(30),
     supabase.from('product_price_stats').select('product_id,price_count,average_unit_price_cents'),
@@ -50,7 +51,7 @@ export default async function ShoppingPage({ searchParams }: { searchParams: Pro
           <div>
             <span className="page-kicker">REGISTRO E HISTÓRICO</span>
             <h1>Comprando</h1>
-            <p>Registre compras reais da sua rotina e acompanhe os indicadores identificados em cada preço.</p>
+            <p>Registre manualmente ou transforme fotos e comprovantes em compras revisáveis.</p>
           </div>
           <div className="heading-stats">
             <span>{purchases?.length ?? 0} registros recentes</span>
@@ -65,19 +66,23 @@ export default async function ShoppingPage({ searchParams }: { searchParams: Pro
         <section className="premium-card work-card" id="registrar-compra">
           <div className="section-inline-heading">
             <div>
-              <span className="page-kicker">REGISTRO RÁPIDO</span>
-              <h2>Registrar compra</h2>
-              <p>Escolha o estabelecimento, os produtos e informe somente a quantidade realmente comprada naquele momento.</p>
+              <span className="page-kicker">REGISTRAR COMPRA</span>
+              <h2>Como você quer registrar?</h2>
+              <p>Use a importação inteligente para notas e pedidos, ou continue preenchendo manualmente quando preferir.</p>
             </div>
             <Link className="text-link small" href="/app/cadastrando">Gerenciar cadastros →</Link>
           </div>
+
+          <ReceiptImporter products={(products ?? []) as any} establishments={(establishments ?? []) as any} />
+
+          <div className="purchase-manual-separator"><span>OU REGISTRE MANUALMENTE</span></div>
 
           {readyToBuy ? (
             <PurchaseForm products={products as any} establishments={establishments as any} />
           ) : (
             <div className="setup-state">
-              <strong>Prepare sua base primeiro</strong>
-              <p>Para registrar uma compra, você precisa de pelo menos um produto e um estabelecimento cadastrados.</p>
+              <strong>Prepare sua base para o modo manual</strong>
+              <p>O registro manual precisa de um produto e um estabelecimento cadastrados. A Importação inteligente acima pode criar esses cadastros automaticamente.</p>
               <div className="setup-steps">
                 <span className={products?.length ? 'done' : ''}>1. Produto {products?.length ? '✓' : ''}</span>
                 <span className={establishments?.length ? 'done' : ''}>2. Estabelecimento {establishments?.length ? '✓' : ''}</span>
