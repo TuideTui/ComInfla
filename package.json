@@ -12,8 +12,10 @@
     "@supabase/supabase-js": "latest",
     "leaflet": "^1.9.4",
     "next": "latest",
+    "pdfjs-dist": "^5.4.296",
     "react": "latest",
-    "react-dom": "latest"
+    "react-dom": "latest",
+    "tesseract.js": "^6.0.1"
   },
   "devDependencies": {
     "@types/leaflet": "^1.9.20",
