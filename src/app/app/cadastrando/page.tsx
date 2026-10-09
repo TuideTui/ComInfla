@@ -1,7 +1,6 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { AppHeader } from '@/components/app-header'
 import { MediaUpload } from '@/components/media-upload'
 import { AddressLocationFields } from '@/components/address-location-fields'
 import { RegistrationModal } from '@/components/registration-modal'
@@ -22,12 +21,6 @@ const frequencyLabels: Record<string, string> = {
   one_time: 'Visita única',
 }
 
-async function signedMediaUrl(supabase: any, path?: string | null) {
-  if (!path) return null
-  const { data } = await supabase.storage.from('cominfla-media').createSignedUrl(path, 60 * 60)
-  return data?.signedUrl ?? null
-}
-
 export default async function RegisteringPage({ searchParams }: { searchParams: Promise<Params> }) {
   const params = await searchParams
   const supabase = await createClient()
@@ -35,27 +28,34 @@ export default async function RegisteringPage({ searchParams }: { searchParams: 
   const userId = claimsData?.claims?.sub
   if (!userId) redirect('/login')
 
-  const [{ data: profile }, { data: categories }, { data: products }, { data: establishments }] = await Promise.all([
-    supabase.from('profiles').select('full_name').eq('id', userId).single(),
+  const [{ data: categories }, { data: products }, { data: establishments }] = await Promise.all([
     supabase.from('categories').select('id,name,parent_id').is('archived_at', null).order('name'),
     supabase.from('products').select('id,name,brand,presentation,packaging,subcategory,photo_path,created_at').is('archived_at', null).order('name'),
     supabase.from('establishments').select('id,name,visit_frequency,neighborhood,city,state,latitude,longitude,photo_path').is('archived_at', null).order('name'),
   ])
 
   const photoEntries = [
-    ...(products ?? []).filter((item) => item.photo_path).map((item) => ({ key: `product:${item.id}`, path: item.photo_path })),
-    ...(establishments ?? []).filter((item) => item.photo_path).map((item) => ({ key: `establishment:${item.id}`, path: item.photo_path })),
+    ...(products ?? []).filter((item) => item.photo_path).map((item) => ({ key: `product:${item.id}`, path: item.photo_path as string })),
+    ...(establishments ?? []).filter((item) => item.photo_path).map((item) => ({ key: `establishment:${item.id}`, path: item.photo_path as string })),
   ]
-  const signedPairs = await Promise.all(photoEntries.map(async (entry) => [entry.key, await signedMediaUrl(supabase, entry.path)] as const))
-  const photoUrls = new Map(signedPairs)
 
-  const firstName = profile?.full_name?.split(' ')[0] || 'você'
+  const photoUrls = new Map<string, string | null>()
+  if (photoEntries.length) {
+    const { data: signedUrls } = await supabase.storage
+      .from('cominfla-media')
+      .createSignedUrls(photoEntries.map((entry) => entry.path), 60 * 60)
+
+    signedUrls?.forEach((item, index) => {
+      const entry = photoEntries[index]
+      if (entry) photoUrls.set(entry.key, item.signedUrl ?? null)
+    })
+  }
+
   const messageText = typeof params.message === 'string' ? params.message : undefined
   const errorText = typeof params.error === 'string' ? params.error : undefined
 
   return (
     <main className="app-shell">
-      <AppHeader active="cadastrando" firstName={firstName} />
       <section className="app-content">
         <div className="dashboard-heading">
           <div>
