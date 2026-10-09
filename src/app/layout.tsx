@@ -13,6 +13,7 @@ import './closing-history.css'
 import './compare.css'
 import './registering.css'
 import './registering-modal.css'
+import './app-performance.css'
 import { LandingLiveEffects } from '../components/landing-live-effects'
 
 export const metadata: Metadata = {
