@@ -36,8 +36,10 @@ export function RegistrationModal({ kind, kicker, title, description, children }
 
   useEffect(() => {
     if (!open) return
+
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
+    document.body.classList.add('registration-modal-open')
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setOpen(false)
@@ -46,6 +48,7 @@ export function RegistrationModal({ kind, kicker, title, description, children }
 
     return () => {
       document.body.style.overflow = previousOverflow
+      document.body.classList.remove('registration-modal-open')
       window.removeEventListener('keydown', onKeyDown)
     }
   }, [open])
