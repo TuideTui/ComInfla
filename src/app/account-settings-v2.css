@@ -164,7 +164,7 @@
 }
 
 .account-email-change-card .account-form-actions {
-  margin-top: 2px;
+  margin-top: 10px;
   display: flex;
   justify-content: flex-end;
 }
