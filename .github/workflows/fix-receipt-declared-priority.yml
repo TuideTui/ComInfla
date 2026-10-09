@@ -1,0 +1,28 @@
+name: Receipt declared count priority fix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/scripts/fix_receipt_declared_priority.py'
+      - '.github/workflows/fix-receipt-declared-priority.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python .github/scripts/fix_receipt_declared_priority.py
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components/receipt-importer-v2.tsx
+          if git diff --cached --quiet; then
+            echo "No changes"
+          else
+            git commit -m "fix: prioritize declared receipt item count"
+            git push
+          fi
