@@ -80,8 +80,65 @@ function detectDeclaredItemCount(text: string) {
   const lines = normalized.split(/\r?\n/).map((line) => line.replace(/\s+/g, ' ').trim()).filter(Boolean)
   const compact = lines.join(' ')
 
+  const parseCountToken = (raw: string | undefined) => {
+    if (!raw) return null
+    const digits = raw
+      .toUpperCase()
+      .replace(/[OQ]/g, '0')
+      .replace(/[IL]/g, '1')
+      .replace(/[^0-9]/g, '')
+    if (!digits) return null
+    const value = Number(digits)
+    return Number.isFinite(value) && value >= 1 && value <= 60 ? value : null
+  }
+
+  const isItemTotalLine = (line: string) => {
+    const compactLine = line.replace(/\s+/g, '')
+    return /QTD/.test(compactLine) && /TOTAL/.test(compactLine) && /(ITENS|1TENS|LTENS|TENS)/.test(compactLine)
+  }
+
+  const trailingCount = (line: string) => {
+    const match = line.match(/([0-9OQIL]{1,4})\s*$/i)
+    return parseCountToken(match?.[1])
+  }
+
+  // 1) NFC-e: o campo QTD. TOTAL DE ITENS costuma ficar imediatamente acima
+  // de VALOR TOTAL. Essa relação espacial/textual é a fonte de maior confiança.
+  for (let index = 0; index < lines.length; index++) {
+    if (!/VALOR\W{0,5}TOTAL/.test(lines[index])) continue
+    for (let offset = 1; offset <= 2; offset++) {
+      const candidateIndex = index - offset
+      if (candidateIndex < 0) continue
+      const candidate = lines[candidateIndex]
+      if (!/QTD/.test(candidate) || !/TOTAL/.test(candidate)) continue
+      const direct = trailingCount(candidate)
+      if (direct) return direct
+
+      // Alguns OCRs quebram o valor 009 em uma linha isolada.
+      if (candidateIndex + 1 < index) {
+        const isolated = lines[candidateIndex + 1]
+        if (/^[0-9OQIL\s]{1,6}$/i.test(isolated)) {
+          const splitValue = parseCountToken(isolated)
+          if (splitValue) return splitValue
+        }
+      }
+    }
+  }
+
+  // 2) Procura direta pelo rótulo, tolerando pequenas deformações de ITENS.
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index]
+    if (!isItemTotalLine(line) && !(/QTD/.test(line) && /TOTAL/.test(line))) continue
+    const direct = trailingCount(line)
+    if (direct) return direct
+    const next = lines[index + 1]
+    if (next && /^[0-9OQIL\s]{1,6}$/i.test(next)) {
+      const splitValue = parseCountToken(next)
+      if (splitValue) return splitValue
+    }
+  }
+
   const indexes = lines.map((line) => {
-    // Só consideramos índice quando a mesma linha também parece uma linha real de produto.
     const match = line.match(/^\s*0?(\d{1,2})\s+(?:\d[\dO]{7,13})\s+[A-ZÀ-Ý]/)
     return match ? Number(match[1]) : 0
   }).filter((value) => value > 0 && value <= 99)
@@ -91,19 +148,18 @@ function detectDeclaredItemCount(text: string) {
     : 0
 
   const patterns = [
-    /QTD\W{0,4}TOTAL(?:\s+DE)?[^0-9]{0,20}([0O]{0,2}\d{1,3})\b/i,
-    /QTD\W{0,3}TOTAL(?:\s+DE)?\s+ITENS?\D{0,12}([0O]*\d{1,3})\b/i,
-    /TOTAL(?:\s+DE)?\s+ITENS?\D{0,12}([0O]*\d{1,3})\b/i,
-    /QTD\W{0,3}TOTAL(?:\s+DE)?\s+(?:I|1|L)?TENS?\D{0,12}([0O]*\d{1,3})\b/i,
+    /QTD\W{0,4}TOTAL(?:\s+DE)?[^0-9]{0,20}([0OQIL]{0,2}\d{1,3})\b/i,
+    /QTD\W{0,3}TOTAL(?:\s+DE)?\s+ITENS?\D{0,12}([0OQIL]*\d{1,3})\b/i,
+    /TOTAL(?:\s+DE)?\s+ITENS?\D{0,12}([0OQIL]*\d{1,3})\b/i,
+    /QTD\W{0,3}TOTAL(?:\s+DE)?\s+(?:I|1|L)?TENS?\D{0,12}([0OQIL]*\d{1,3})\b/i,
   ]
   for (const pattern of patterns) {
     const match = compact.match(pattern)
     if (!match) continue
-    const value = Number(match[1].replace(/O/g, '0'))
-    if (!Number.isFinite(value) || value <= 0 || value > 999) continue
+    const value = parseCountToken(match[1])
+    if (!value) continue
     const observedMax = unique.length ? unique[unique.length - 1] : 0
     if (observedMax >= 3 && value < observedMax) return observedMax
-    if (sequentialMax >= 3 && (value > Math.max(observedMax, sequentialMax) * 2 || value - Math.max(observedMax, sequentialMax) >= 10)) return Math.max(observedMax, sequentialMax)
     return value
   }
 
@@ -229,6 +285,37 @@ async function imageFileToCanvas(file: File, aggressive = false) {
   } finally {
     URL.revokeObjectURL(url)
   }
+}
+
+
+async function extractReceiptSummaryText(canvas: HTMLCanvasElement, worker: any) {
+  // Segunda passada focada na área onde NFC-e normalmente imprime
+  // QTD. TOTAL DE ITENS / VALOR TOTAL. O recorte reduz o ruído da página inteira.
+  const sourceX = Math.round(canvas.width * 0.06)
+  const sourceY = Math.round(canvas.height * 0.34)
+  const sourceWidth = Math.round(canvas.width * 0.88)
+  const sourceHeight = Math.round(canvas.height * 0.40)
+  const scale = 2
+  const crop = document.createElement('canvas')
+  crop.width = Math.max(1, sourceWidth * scale)
+  crop.height = Math.max(1, sourceHeight * scale)
+  const context = crop.getContext('2d', { willReadFrequently: true })
+  if (!context) return ''
+  context.drawImage(canvas, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, crop.width, crop.height)
+
+  const pixels = context.getImageData(0, 0, crop.width, crop.height)
+  for (let index = 0; index < pixels.data.length; index += 4) {
+    const gray = pixels.data[index] * .299 + pixels.data[index + 1] * .587 + pixels.data[index + 2] * .114
+    const boosted = Math.max(0, Math.min(255, (gray - 128) * 1.75 + 128))
+    const value = boosted > 184 ? 255 : boosted < 104 ? 0 : boosted
+    pixels.data[index] = value
+    pixels.data[index + 1] = value
+    pixels.data[index + 2] = value
+  }
+  context.putImageData(pixels, 0, 0)
+
+  const result = await worker.recognize(crop)
+  return String(result?.data?.text ?? '').trim()
 }
 
 async function extractPdfText(file: File, getWorker: () => Promise<any>) {
@@ -531,6 +618,7 @@ export function ReceiptImporterV2({ products, establishments }: { products: Prod
     try {
       const parts: ParsedReceipt[] = []
       const texts: string[] = []
+      const countHints: string[] = []
       for (let index = 0; index < filesToProcess.length; index++) {
         const entry = filesToProcess[index]
         setProgress(Math.round(index / filesToProcess.length * 88))
@@ -543,6 +631,15 @@ export function ReceiptImporterV2({ products, establishments }: { products: Prod
           const ocrWorker = await getWorker()
           const result = await ocrWorker.recognize(canvas)
           text = result?.data?.text ?? ''
+
+          const initialDeclared = detectDeclaredItemCount(text)
+          const initialVisual = detectLikelyProductRowCount(text)
+          const suspiciousCount = !initialDeclared || (initialVisual >= 2 && Math.abs(initialDeclared - initialVisual) >= 4)
+          if (suspiciousCount) {
+            setProgressText('Conferindo a quantidade total de itens da nota…')
+            const summaryText = await extractReceiptSummaryText(canvas, ocrWorker)
+            if (summaryText) countHints.push(summaryText)
+          }
         }
         texts.push(text)
         parts.push(parseReceiptTextSmart(text))
@@ -553,7 +650,7 @@ export function ReceiptImporterV2({ products, establishments }: { products: Prod
       const parsed = mergeReceiptParts(parts)
       const fingerprint = await buildFingerprint(parsed)
       const mappedItems = parsed.items.map((item) => ({ ...item, productId: bestProduct(item, products) }))
-      const declaredItemCount = resolveDeclaredItemCount(texts, mappedItems.length)
+      const declaredItemCount = resolveDeclaredItemCount([...countHints, ...texts], mappedItems.length)
       const reviewItems = ensureDeclaredItemSlots(mappedItems, declaredItemCount)
       const review: ReviewDraft = {
         ...parsed,
