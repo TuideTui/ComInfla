@@ -1,0 +1,38 @@
+/* Transição entre autenticação e área logada */
+.auth-shell {
+  transition: opacity .28s cubic-bezier(.4,0,.2,1), transform .28s cubic-bezier(.4,0,.2,1), filter .28s ease;
+}
+
+.auth-transition-card {
+  transition: opacity .28s cubic-bezier(.4,0,.2,1), transform .28s cubic-bezier(.4,0,.2,1);
+}
+
+body.auth-route-leaving .auth-shell {
+  opacity: 0;
+  transform: translateY(-10px) scale(.994);
+  filter: saturate(.85);
+  pointer-events: none;
+}
+
+body.auth-route-leaving .auth-transition-card {
+  transform: translateY(-8px) scale(.99);
+}
+
+.form-stack .button:disabled {
+  cursor: default;
+  opacity: .82;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-shell,
+  .auth-transition-card {
+    transition: opacity .2s ease;
+  }
+
+  body.auth-route-leaving .auth-shell,
+  body.auth-route-leaving .auth-transition-card {
+    transform: none;
+    filter: none;
+  }
+}
