@@ -2,7 +2,8 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
-import type { ImportedPurchasePayload, ImportedPurchaseResult } from '@/lib/receipt-import-types'
+import type { ImportedPurchasePayload as ImportedPurchasePayloadType, ImportedPurchaseResult } from '@/lib/receipt-import-types'
+export type { ImportedPurchasePayload } from '@/lib/receipt-import-types'
 
 async function authenticatedClient() {
   const supabase = await createClient()
@@ -37,7 +38,7 @@ export async function checkReceiptFingerprint(fingerprint: string): Promise<{ du
   return { duplicate: Boolean(data?.purchase_id), purchaseId: data?.purchase_id ?? null }
 }
 
-export async function registerImportedPurchase(payload: ImportedPurchasePayload): Promise<ImportedPurchaseResult> {
+export async function registerImportedPurchase(payload: ImportedPurchasePayloadType): Promise<ImportedPurchaseResult> {
   const { supabase, userId } = await authenticatedClient()
   if (!userId) return { ok: false, message: 'Sua sessão expirou. Entre novamente para registrar a compra.' }
 
