@@ -190,10 +190,8 @@ function extractVisualBlocks(rawText: string) {
 
     const continuation = /^\W*[A-Z]?\s*(?:\d+(?:[.,]\d{1,3})?\s*)?(?:UN|KG|G|L|LT|ML)\b/i.test(line)
       || /^\W*\d+(?:[.,]\d{1,3})?\s*(?:UN|KG|G|L|LT|ML)\b/i.test(line)
-    const head = line.slice(0, 38)
-    const barcodeLike = /\d{7,14}/.test(head)
     const hasDescription = /[A-Za-zÀ-ÿ]{3,}/.test(line)
-    const hasProductShape = barcodeLike && hasDescription && !continuation
+    const hasProductShape = hasDescription && !continuation
 
     if (hasProductShape) {
       flush()
@@ -337,42 +335,37 @@ export function parseReceiptTextSmart(rawText: string) {
   const fallback = tolerantItems(rawText)
   const indexedBlocks = extractIndexedBlocks(rawText)
   const visualBlocks = base.sourceKind === 'nfce' ? extractVisualBlocks(rawText) : []
-  const receiptBlocks = visualBlocks.length >= 3 ? visualBlocks : indexedBlocks
+  const receiptBlocks = visualBlocks.length > indexedBlocks.length ? visualBlocks : indexedBlocks
   const indexedItems = receiptBlocks.map(parseIndexedBlock)
 
-  // NFC-e possui uma tabela de produtos. Quando conseguimos reconstruir essa tabela,
-  // ela passa a ser a fonte canônica e não anexamos candidatos extras fora dela.
-  let items: any[]
-  if (base.sourceKind === 'nfce' && receiptBlocks.length >= 3) {
-    items = indexedItems
-  } else {
-    const candidates = [...(base.items as any[]), ...fallback, ...indexedItems]
-    const byIndex = new Map<number, any>()
-    const withoutIndex: any[] = []
+  const candidates = [...(base.items as any[]), ...fallback, ...indexedItems]
+  const byIndex = new Map<number, any>()
+  const withoutIndex: any[] = []
 
-    for (const item of candidates) {
-      const index = itemIndexFromSourceLine(item.sourceLine ?? '')
-      if (!index) { withoutIndex.push(item); continue }
-      const current = byIndex.get(index)
-      if (!current || scoreItem(item) > scoreItem(current)) byIndex.set(index, item)
-    }
-
-    const indexedResult = [...byIndex.entries()].sort((a, b) => a[0] - b[0]).map(([, item]) => item)
-    const seen = new Set(indexedResult.map((item) => `${item.barcode || normalizeForMatch(item.name)}|${item.quantity.toFixed(3)}|${item.unitPriceCents}|${item.totalCents}`))
-    const extras = withoutIndex.filter((item) => {
-      const signature = `${item.barcode || normalizeForMatch(item.name)}|${item.quantity.toFixed(3)}|${item.unitPriceCents}|${item.totalCents}`
-      if (seen.has(signature)) return false
-      seen.add(signature)
-      return true
-    })
-    items = [...indexedResult, ...extras]
+  for (const item of candidates) {
+    const index = itemIndexFromSourceLine(item.sourceLine ?? '')
+    if (!index) { withoutIndex.push(item); continue }
+    const current = byIndex.get(index)
+    if (!current || scoreItem(item) > scoreItem(current)) byIndex.set(index, item)
   }
 
-  // Detalhes técnicos de recuperação ficam internos; a UI já apresenta o resumo de revisão.
-  const warnings = base.warnings.filter((warning) =>
-    !warning.startsWith('Não conseguimos separar os itens automaticamente') &&
-    !/(recuperad|preservad|interpretad por completo)/i.test(warning)
-  )
+  const indexedResult = [...byIndex.entries()].sort((a, b) => a[0] - b[0]).map(([, item]) => item)
+  const seen = new Set(indexedResult.map((item) => `${item.barcode || normalizeForMatch(item.name)}|${item.quantity.toFixed(3)}|${item.unitPriceCents}|${item.totalCents}`))
+  const extras = withoutIndex.filter((item) => {
+    const signature = `${item.barcode || normalizeForMatch(item.name)}|${item.quantity.toFixed(3)}|${item.unitPriceCents}|${item.totalCents}`
+    if (seen.has(signature)) return false
+    seen.add(signature)
+    return true
+  })
+  const items = [...indexedResult, ...extras]
+
+  const warnings = base.warnings.filter((warning) => !warning.startsWith('Não conseguimos separar os itens automaticamente'))
+  const incomplete = indexedResult.filter((item) => item.unitPriceCents <= 0 || item.totalCents <= 0 || /^Item \d+ da nota$/i.test(item.name)).length
+  const recovered = Math.max(0, items.length - base.items.length)
+
+  if (receiptBlocks.length) warnings.unshift(`${receiptBlocks.length} linha(s) de produto da nota foram preservadas para conferência.`)
+  if (recovered) warnings.unshift(`${recovered} item(ns) adicionais foram recuperados automaticamente e precisam de revisão.`)
+  if (incomplete) warnings.unshift(`${incomplete} item(ns) não foram interpretados por completo e foram mantidos para preenchimento manual.`)
 
   return { ...base, items, warnings } as typeof base
 }

@@ -119,13 +119,23 @@ function detectLikelyProductRowCount(text: string) {
   const lines = normalized.split(/\r?\n/).map((line) => line.replace(/\s+/g, ' ').trim()).filter(Boolean)
   let insideItems = false
   let count = 0
-  for (const line of lines) {
-    if (/DESCRI/.test(line) && /(QTD|VL|TOTAL|CODIGO)/.test(line)) { insideItems = true; continue }
+
+  for (const original of lines) {
+    const line = original.replace(/[OQ]/g, '0').replace(/[IL]/g, '1')
+    if (/DESCRI/.test(line) && /(QTD|VL|TOTAL|CODIGO)/.test(line)) {
+      insideItems = true
+      continue
+    }
     if (!insideItems) continue
     if (/(QTD\W*TOTAL|VALOR\W*TOTAL|CARTAO|CONSULTE\W+PELA)/.test(line)) break
-    const head = line.slice(0, 38)
-    if (/\d{7,14}/.test(head) && /[A-Z]{3,}/.test(line)) count++
+
+    // Em NFC-e, cada linha real de produto traz um código longo logo no começo.
+    // Contamos a linha, não o índice 01/02/03, porque o OCR costuma deformar esses índices.
+    const head = line.slice(0, 52)
+    const barcodeLike = head.match(/(?:\d[\s.\-]*){8,16}/)
+    if (barcodeLike) count++
   }
+
   return count
 }
 
@@ -134,11 +144,10 @@ function resolveDeclaredItemCount(texts: string[], parsedItemCount: number) {
   const declared = detectDeclaredItemCount(joined)
   const visualCount = Math.max(0, ...texts.map(detectLikelyProductRowCount))
 
-  // Em NFC-e, a quantidade de linhas de produto com código é uma evidência forte.
-  // Se ela coincide com o que o parser canônico reconstruiu, usamos esse número.
-  if (visualCount >= 3 && parsedItemCount === visualCount) return visualCount
+  // A contagem visual por linhas de código de produto é a fonte mais confiável
+  // quando há uma tabela NFC-e legível. Ela não depende do OCR acertar "009".
+  if (visualCount >= 3 && visualCount <= 60) return visualCount
   if (declared && declared >= 1 && declared <= 60) return declared
-  if (visualCount >= 3) return visualCount
   return parsedItemCount > 0 ? parsedItemCount : null
 }
 
