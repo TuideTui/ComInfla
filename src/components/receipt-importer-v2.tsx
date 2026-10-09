@@ -763,7 +763,7 @@ export function ReceiptImporterV2({ products, establishments }: { products: Prod
                 <span className={structuredItemCount > 0 ? 'ok' : 'warn'}>
                   <small>Itens identificados</small>
                   <b>{structuredItemCount} {structuredItemCount === 1 ? 'item identificado' : 'itens identificados'}</b>
-                  <em>{incompleteItemCount > 0 ? `${incompleteItemCount} ${incompleteItemCount === 1 ? 'item precisa' : 'itens precisam'} de revisão antes do registro.` : 'Revise nomes, quantidades e preços antes de registrar.'}</em>
+                  <em>{incompleteItemCount > 0 ? `Aproximadamente ${incompleteItemCount} ${incompleteItemCount === 1 ? 'item precisa' : 'itens precisam'} de revisão antes do registro. Essa é uma estimativa da plataforma; confira seus itens.` : 'Revise nomes, quantidades e preços antes de registrar.'}</em>
                 </span>
                 <span className={!draft.totalCents || Math.abs(identifiedValueCents - draft.totalCents) <= 5 ? 'ok' : 'warn'}>
                   <small>Valor identificado</small>
