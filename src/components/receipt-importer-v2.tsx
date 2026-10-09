@@ -217,6 +217,7 @@ export function ReceiptImporterV2({ products, establishments }: { products: Prod
   const router = useRouter()
   const uploadRef = useRef<HTMLInputElement | null>(null)
   const cameraRef = useRef<HTMLInputElement | null>(null)
+  const filesRef = useRef<ImportFile[]>([])
   const [open, setOpen] = useState(false)
   const [stage, setStage] = useState<ImportStage>('source')
   const [files, setFiles] = useState<ImportFile[]>([])
@@ -266,8 +267,17 @@ export function ReceiptImporterV2({ products, establishments }: { products: Prod
     return () => { document.body.style.overflow = previous; window.removeEventListener('keydown', handler) }
   }, [open, confirmOpen, isPending])
 
+  useEffect(() => {
+    filesRef.current = files
+  }, [files])
+
+  useEffect(() => () => {
+    filesRef.current.forEach((entry) => { if (entry.previewUrl) URL.revokeObjectURL(entry.previewUrl) })
+  }, [])
+
   function resetState() {
-    files.forEach((entry) => { if (entry.previewUrl) URL.revokeObjectURL(entry.previewUrl) })
+    filesRef.current.forEach((entry) => { if (entry.previewUrl) URL.revokeObjectURL(entry.previewUrl) })
+    filesRef.current = []
     setFiles([]); setStage('source'); setProgress(0); setProgressText('Preparando leitura…'); setDraft(null); setRawText(''); setShowRawText(false); setDuplicatePurchaseId(null); setError(''); setConfirmOpen(false); setSuccess(null)
   }
 
@@ -277,38 +287,77 @@ export function ReceiptImporterV2({ products, establishments }: { products: Prod
     window.setTimeout(resetState, 180)
   }
 
-  function addFiles(list: FileList | null) {
-    if (!list?.length) return
+  function addFiles(selectedFiles: File[] | FileList | null) {
+    const selected = selectedFiles ? Array.from(selectedFiles) : []
+    if (!selected.length) return
+
     setError('')
-    setFiles((current) => {
-      const seen = new Set(current.map((entry) => `${entry.file.name}:${entry.file.size}:${entry.file.lastModified}`))
-      const next = [...current]
-      for (const file of Array.from(list)) {
-        if (next.length >= 10) break
-        const identity = `${file.name}:${file.size}:${file.lastModified}`
-        if (seen.has(identity)) continue
-        const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
-        if ((!file.type.startsWith('image/') && !isPdf) || file.size > 15 * 1024 * 1024) continue
-        next.push({ key: `${Date.now()}-${Math.random().toString(36).slice(2)}`, file, previewUrl: file.type.startsWith('image/') ? URL.createObjectURL(file) : null })
-        seen.add(identity)
+    const current = filesRef.current
+    const seen = new Set(current.map((entry) => `${entry.file.name}:${entry.file.size}:${entry.file.lastModified}`))
+    const additions: ImportFile[] = []
+    let rejectionMessage = ''
+
+    for (const file of selected) {
+      if (current.length + additions.length >= 10) break
+      const identity = `${file.name}:${file.size}:${file.lastModified}`
+      if (seen.has(identity)) continue
+
+      if (file.size > 15 * 1024 * 1024) {
+        rejectionMessage = 'Cada arquivo pode ter no máximo 15 MB.'
+        continue
       }
-      return next
-    })
+
+      const lowerName = file.name.toLowerCase()
+      const isPdf = file.type === 'application/pdf' || lowerName.endsWith('.pdf')
+      const isImage = file.type.startsWith('image/') || /\.(jpe?g|png|webp)$/i.test(lowerName)
+      if (!isPdf && !isImage) {
+        rejectionMessage = 'Use imagens JPG, PNG, WebP ou documentos PDF.'
+        continue
+      }
+
+      additions.push({
+        key: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        file,
+        previewUrl: isImage ? URL.createObjectURL(file) : null,
+      })
+      seen.add(identity)
+    }
+
+    if (!additions.length) {
+      if (rejectionMessage) setError(rejectionMessage)
+      return
+    }
+
+    const next = [...current, ...additions]
+    filesRef.current = next
+    setFiles(next)
     setStage('files')
+    if (rejectionMessage) setError(rejectionMessage)
+  }
+
+  function handleFileSelection(event: React.ChangeEvent<HTMLInputElement>) {
+    const selected = event.currentTarget.files ? Array.from(event.currentTarget.files) : []
+    event.currentTarget.value = ''
+    addFiles(selected)
   }
 
   function removeFile(key: string) {
-    setFiles((current) => {
-      const target = current.find((entry) => entry.key === key)
-      if (target?.previewUrl) URL.revokeObjectURL(target.previewUrl)
-      const next = current.filter((entry) => entry.key !== key)
-      if (!next.length) setStage('source')
-      return next
-    })
+    const current = filesRef.current
+    const target = current.find((entry) => entry.key === key)
+    if (target?.previewUrl) URL.revokeObjectURL(target.previewUrl)
+    const next = current.filter((entry) => entry.key !== key)
+    filesRef.current = next
+    setFiles(next)
+    if (!next.length) setStage('source')
   }
 
   async function processFiles(aggressive = false) {
-    if (!files.length) return
+    const filesToProcess = filesRef.current
+    if (!filesToProcess.length) {
+      setError('Adicione pelo menos uma foto ou PDF antes de iniciar a leitura.')
+      setStage('source')
+      return
+    }
     setStage('processing'); setError(''); setProgress(0); setShowRawText(false)
     let worker: any = null
     const getWorker = async () => {
@@ -322,10 +371,10 @@ export function ReceiptImporterV2({ products, establishments }: { products: Prod
     try {
       const parts: ParsedReceipt[] = []
       const texts: string[] = []
-      for (let index = 0; index < files.length; index++) {
-        const entry = files[index]
-        setProgress(Math.round(index / files.length * 88))
-        setProgressText(`${aggressive ? 'Relendo' : 'Lendo'} ${index + 1} de ${files.length}: ${entry.file.name}`)
+      for (let index = 0; index < filesToProcess.length; index++) {
+        const entry = filesToProcess[index]
+        setProgress(Math.round(index / filesToProcess.length * 88))
+        setProgressText(`${aggressive ? 'Relendo' : 'Lendo'} ${index + 1} de ${filesToProcess.length}: ${entry.file.name}`)
         const isPdf = entry.file.type === 'application/pdf' || entry.file.name.toLowerCase().endsWith('.pdf')
         let text = ''
         if (isPdf) text = await extractPdfText(entry.file, getWorker)
@@ -428,7 +477,7 @@ export function ReceiptImporterV2({ products, establishments }: { products: Prod
             <div className="receipt-privacy-note"><span>◈</span><div><strong>Privacidade por padrão</strong><p>A imagem é processada no navegador. Só os dados revisados são registrados.</p></div></div>
           </div> : null}
 
-          {stage === 'files' ? <div className="receipt-files-stage"><div className="receipt-stage-heading"><div><h3>Arquivos da compra</h3><p>{files.length} de 10 adicionados.</p></div><button className="ghost-button" type="button" onClick={() => uploadRef.current?.click()}>+ Adicionar</button></div><div className="receipt-file-grid">{files.map((entry,index) => <article className="receipt-file-card" key={entry.key}>{entry.previewUrl ? <img src={entry.previewUrl} alt={`Prévia ${index+1}`}/> : <div className="receipt-pdf-preview"><span>PDF</span></div>}<div><strong>{index+1}. {entry.file.name}</strong><span>{(entry.file.size/1024/1024).toFixed(1).replace('.',',')} MB</span></div><button type="button" onClick={() => removeFile(entry.key)}>×</button></article>)}</div><div className="receipt-files-actions"><button className="ghost-button" type="button" onClick={() => cameraRef.current?.click()}>Abrir câmera</button><button className="button button-primary" type="button" onClick={() => processFiles(false)}>Ler comprovantes →</button></div></div> : null}
+          {stage === 'files' ? <div className="receipt-files-stage"><div className="receipt-stage-heading"><div><h3>Arquivos da compra</h3><p>{files.length} de 10 adicionados.</p></div><button className="ghost-button" type="button" onClick={() => uploadRef.current?.click()}>+ Adicionar</button></div><div className="receipt-file-grid">{files.map((entry,index) => <article className="receipt-file-card" key={entry.key}>{entry.previewUrl ? <img src={entry.previewUrl} alt={`Prévia ${index+1}`}/> : <div className="receipt-pdf-preview"><span>PDF</span></div>}<div><strong>{index+1}. {entry.file.name}</strong><span>{(entry.file.size/1024/1024).toFixed(1).replace('.',',')} MB</span></div><button type="button" onClick={() => removeFile(entry.key)}>×</button></article>)}</div><div className="receipt-files-actions"><button className="ghost-button" type="button" onClick={() => cameraRef.current?.click()}>Abrir câmera</button><button className="button button-primary" type="button" onClick={() => processFiles(false)} disabled={!files.length}>Ler comprovantes →</button></div></div> : null}
 
           {stage === 'processing' ? <div className="receipt-processing-stage"><div className="receipt-scan-animation"><div className="receipt-scan-paper"><i/><i/><i/><i/><span/></div></div><span className="page-kicker">ANALISANDO LOCALMENTE</span><h3>{progressText}</h3><p>Identificando estabelecimento, data, itens, quantidades, preços e totais.</p><div className="receipt-progress"><span style={{width:`${progress}%`}}/></div><strong>{Math.round(progress)}%</strong></div> : null}
 
@@ -463,8 +512,8 @@ export function ReceiptImporterV2({ products, establishments }: { products: Prod
           {stage === 'success' && success ? <div className="receipt-success-stage"><div className="receipt-success-icon">✓</div><span className="page-kicker">IMPORTAÇÃO CONCLUÍDA</span><h3>Compra registrada</h3><p>{success.itemCount} {success.itemCount===1?'item foi salvo':'itens foram salvos'}.</p><button className="button button-primary" type="button" onClick={()=>success.purchaseId?window.location.assign(`/app/comprando?purchase=${success.purchaseId}`):closeImporter()}>Ver compra e insights →</button></div> : null}
         </div>
 
-        <input ref={uploadRef} className="receipt-hidden-input" type="file" accept="image/jpeg,image/png,image/webp,application/pdf,.pdf" multiple onChange={(e)=>{addFiles(e.target.files);e.currentTarget.value=''}}/>
-        <input ref={cameraRef} className="receipt-hidden-input" type="file" accept="image/*" capture="environment" onChange={(e)=>{addFiles(e.target.files);e.currentTarget.value=''}}/>
+        <input ref={uploadRef} className="receipt-hidden-input" type="file" accept="image/jpeg,image/png,image/webp,application/pdf,.jpg,.jpeg,.png,.webp,.pdf" multiple onChange={handleFileSelection}/>
+        <input ref={cameraRef} className="receipt-hidden-input" type="file" accept="image/*" capture="environment" onChange={handleFileSelection}/>
         {confirmOpen && draft ? <div className="receipt-confirm-overlay"><div className="receipt-confirm-card"><span className="page-kicker">CONFIRME O REGISTRO</span><h3>Registrar esta compra?</h3><div className="receipt-confirm-summary"><span><small>Estabelecimento</small><b>{draft.establishmentId===NEW_VALUE?draft.newEstablishmentName:establishments.find((item)=>item.id===draft.establishmentId)?.name}</b></span><span><small>Itens</small><b>{draft.items.length}</b></span><span><small>Total</small><b>{formatBRL(calculatedTotalCents)}</b></span><span><small>Qualidade</small><b>{qualityText.label}</b></span></div><p>Nada foi cadastrado até agora. Ao confirmar, a compra e os novos cadastros serão gravados juntos.</p><div className="receipt-confirm-actions"><button className="ghost-button" type="button" onClick={()=>setConfirmOpen(false)}>Voltar e revisar</button><button className="button button-primary" type="button" onClick={confirmRegistration} disabled={isPending}>{isPending?'Registrando…':'Confirmar e registrar'}</button></div></div></div>:null}
       </section>
     </div>, document.body) : null
