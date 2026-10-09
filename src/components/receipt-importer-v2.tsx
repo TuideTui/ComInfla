@@ -283,34 +283,48 @@ async function imageFileToCanvas(file: File, aggressive = false) {
 }
 
 
-async function extractReceiptSummaryText(canvas: HTMLCanvasElement, worker: any) {
-  // Segunda passada focada na área onde NFC-e normalmente imprime
-  // QTD. TOTAL DE ITENS / VALOR TOTAL. O recorte reduz o ruído da página inteira.
-  const sourceX = Math.round(canvas.width * 0.06)
-  const sourceY = Math.round(canvas.height * 0.34)
-  const sourceWidth = Math.round(canvas.width * 0.88)
-  const sourceHeight = Math.round(canvas.height * 0.40)
-  const scale = 2
-  const crop = document.createElement('canvas')
-  crop.width = Math.max(1, sourceWidth * scale)
-  crop.height = Math.max(1, sourceHeight * scale)
-  const context = crop.getContext('2d', { willReadFrequently: true })
-  if (!context) return ''
-  context.drawImage(canvas, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, crop.width, crop.height)
+async function extractReceiptItemsText(canvas: HTMLCanvasElement, worker: any) {
+  // Segunda leitura dedicada à tabela da NFC-e. O objetivo aqui não é descobrir
+  // quantos itens deveriam existir, e sim recuperar melhor nome, quantidade,
+  // unidade, preço unitário e total de cada linha visível.
+  const passes = [
+    { y: .10, h: .54, contrast: 1.55, low: 96, high: 188 },
+    { y: .16, h: .48, contrast: 1.85, low: 112, high: 178 },
+  ]
+  const outputs: string[] = []
 
-  const pixels = context.getImageData(0, 0, crop.width, crop.height)
-  for (let index = 0; index < pixels.data.length; index += 4) {
-    const gray = pixels.data[index] * .299 + pixels.data[index + 1] * .587 + pixels.data[index + 2] * .114
-    const boosted = Math.max(0, Math.min(255, (gray - 128) * 1.75 + 128))
-    const value = boosted > 184 ? 255 : boosted < 104 ? 0 : boosted
-    pixels.data[index] = value
-    pixels.data[index + 1] = value
-    pixels.data[index + 2] = value
+  for (const pass of passes) {
+    const sourceX = Math.round(canvas.width * .035)
+    const sourceY = Math.round(canvas.height * pass.y)
+    const sourceWidth = Math.round(canvas.width * .93)
+    const sourceHeight = Math.min(Math.round(canvas.height * pass.h), canvas.height - sourceY)
+    if (sourceHeight <= 0 || sourceWidth <= 0) continue
+
+    const scale = 2.35
+    const crop = document.createElement('canvas')
+    crop.width = Math.max(1, Math.round(sourceWidth * scale))
+    crop.height = Math.max(1, Math.round(sourceHeight * scale))
+    const context = crop.getContext('2d', { willReadFrequently: true })
+    if (!context) continue
+    context.drawImage(canvas, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, crop.width, crop.height)
+
+    const pixels = context.getImageData(0, 0, crop.width, crop.height)
+    for (let index = 0; index < pixels.data.length; index += 4) {
+      const gray = pixels.data[index] * .299 + pixels.data[index + 1] * .587 + pixels.data[index + 2] * .114
+      const boosted = Math.max(0, Math.min(255, (gray - 128) * pass.contrast + 128))
+      const value = boosted >= pass.high ? 255 : boosted <= pass.low ? 0 : boosted
+      pixels.data[index] = value
+      pixels.data[index + 1] = value
+      pixels.data[index + 2] = value
+    }
+    context.putImageData(pixels, 0, 0)
+
+    const result = await worker.recognize(crop)
+    const text = String(result?.data?.text ?? '').trim()
+    if (text) outputs.push(text)
   }
-  context.putImageData(pixels, 0, 0)
 
-  const result = await worker.recognize(crop)
-  return String(result?.data?.text ?? '').trim()
+  return outputs.join('\n')
 }
 
 async function extractPdfText(file: File, getWorker: () => Promise<any>) {
@@ -492,9 +506,8 @@ export function ReceiptImporterV2({ products, establishments }: { products: Prod
     if (!draft || draft.items.length === 0) return 'weak'
     const tolerance = draft.totalCents ? 5 : 0
     const totalMatches = !draft.totalCents || Math.abs(calculatedTotalCents - draft.totalCents) <= tolerance
-    const countMatches = !draft.declaredItemCount || draft.declaredItemCount === structuredItemCount
     const lowConfidence = draft.items.filter((item) => item.confidence === 'low').length
-    if (totalMatches && countMatches && incompleteItemCount === 0 && lowConfidence <= Math.ceil(draft.items.length * .25)) return 'good'
+    if (totalMatches && incompleteItemCount === 0 && lowConfidence <= Math.ceil(draft.items.length * .25)) return 'good'
     return 'partial'
   }, [draft, calculatedTotalCents, structuredItemCount, incompleteItemCount])
 
@@ -613,7 +626,6 @@ export function ReceiptImporterV2({ products, establishments }: { products: Prod
     try {
       const parts: ParsedReceipt[] = []
       const texts: string[] = []
-      const countHints: string[] = []
       for (let index = 0; index < filesToProcess.length; index++) {
         const entry = filesToProcess[index]
         setProgress(Math.round(index / filesToProcess.length * 88))
@@ -627,13 +639,11 @@ export function ReceiptImporterV2({ products, establishments }: { products: Prod
           const result = await ocrWorker.recognize(canvas)
           text = result?.data?.text ?? ''
 
-          const initialDeclared = detectDeclaredItemCount(text)
-          const initialVisual = detectLikelyProductRowCount(text)
-          const suspiciousCount = !initialDeclared || (initialVisual >= 2 && Math.abs(initialDeclared - initialVisual) >= 4)
-          if (suspiciousCount) {
-            setProgressText('Conferindo a quantidade total de itens da nota…')
-            const summaryText = await extractReceiptSummaryText(canvas, ocrWorker)
-            if (summaryText) countHints.push(summaryText)
+          const likelyNfce = /(NOTA\s+FISCAL|NFC.?E|DOCUMENTO\s+AUXILIAR|SQ.?CODIGO|VL.?UNIT)/i.test(text)
+          if (likelyNfce) {
+            setProgressText('Refinando a leitura da tabela de produtos…')
+            const itemsText = await extractReceiptItemsText(canvas, ocrWorker)
+            if (itemsText) text = `${text}\n\n──────── TABELA DE PRODUTOS ────────\n${itemsText}`
           }
         }
         texts.push(text)
@@ -644,16 +654,14 @@ export function ReceiptImporterV2({ products, establishments }: { products: Prod
       setProgress(94); setProgressText('Conferindo itens repetidos e procurando seu catálogo…')
       const parsed = mergeReceiptParts(parts)
       const fingerprint = await buildFingerprint(parsed)
-      const mappedItems = parsed.items.map((item) => ({ ...item, productId: bestProduct(item, products) }))
-      const declaredItemCount = resolveDeclaredItemCount([...countHints, ...texts], mappedItems.length)
-      const reviewItems = ensureDeclaredItemSlots(mappedItems, declaredItemCount)
+      const reviewItems = parsed.items.map((item) => ({ ...item, productId: bestProduct(item, products) }))
       const review: ReviewDraft = {
         ...parsed,
         purchasedAt: '',
         fingerprint,
         establishmentId: '',
         isNewEstablishment: null,
-        declaredItemCount: declaredItemCount ?? (reviewItems.length || null),
+        declaredItemCount: null,
         items: reviewItems,
       }
       setDraft(review)
@@ -752,15 +760,15 @@ export function ReceiptImporterV2({ products, establishments }: { products: Prod
             <section className={`receipt-quality-card ${quality}`}>
               <div className="receipt-quality-head"><span className="receipt-quality-dot"/><div><span className="page-kicker">RESUMO DA LEITURA</span><h3>{quality === 'good' ? 'A leitura está consistente' : quality === 'partial' ? 'Encontramos dados, mas há diferenças para revisar' : 'A leitura precisa de revisão'}</h3><p>Compare o que a nota informa com o que o ComInfla conseguiu montar.</p></div><strong>{qualityText.label}</strong></div>
               <div className="receipt-quality-grid receipt-quality-grid-pairs">
-                <span className={draft.declaredItemCount === structuredItemCount && incompleteItemCount === 0 ? 'ok' : 'warn'}>
-                  <small>Itens encontrados</small>
-                  <b>{draft.declaredItemCount ? `${structuredItemCount}/${draft.declaredItemCount} itens identificados` : `${structuredItemCount} ${structuredItemCount === 1 ? 'item identificado' : 'itens identificados'}`}</b>
-                  <em>{draft.declaredItemCount ? (incompleteItemCount > 0 ? `${incompleteItemCount} ${incompleteItemCount === 1 ? 'linha da nota foi preservada e precisa' : 'linhas da nota foram preservadas e precisam'} de revisão.` : `A nota informa ${draft.declaredItemCount} itens no total.`) : 'A quantidade total da nota não pôde ser lida com segurança.'}</em>
+                <span className={structuredItemCount > 0 ? 'ok' : 'warn'}>
+                  <small>Itens identificados</small>
+                  <b>{structuredItemCount} {structuredItemCount === 1 ? 'item identificado' : 'itens identificados'}</b>
+                  <em>{incompleteItemCount > 0 ? `${incompleteItemCount} ${incompleteItemCount === 1 ? 'item precisa' : 'itens precisam'} de revisão antes do registro.` : 'Revise nomes, quantidades e preços antes de registrar.'}</em>
                 </span>
                 <span className={!draft.totalCents || Math.abs(identifiedValueCents - draft.totalCents) <= 5 ? 'ok' : 'warn'}>
                   <small>Valor identificado</small>
                   <b>{draft.totalCents ? `${formatBRL(identifiedValueCents)} de ${formatBRL(draft.totalCents)}` : formatBRL(identifiedValueCents)}</b>
-                  <em>{draft.totalCents ? `Total informado na nota: ${formatBRL(draft.totalCents)}.` : 'O total impresso na nota não pôde ser identificado.'}</em>
+                  <em>{draft.totalCents ? (draft.totalCents - identifiedValueCents > 5 ? `Ainda faltam ${formatBRL(draft.totalCents - identifiedValueCents)} para explicar o total da nota.` : identifiedValueCents - draft.totalCents > 5 ? `Os itens identificados superam o total da nota em ${formatBRL(identifiedValueCents - draft.totalCents)}.` : 'Os valores identificados explicam o total da nota.') : 'O total impresso na nota não pôde ser identificado.'}</em>
                 </span>
               </div>
             </section>

@@ -19,9 +19,13 @@ function titleCase(value: string) {
 
 function inferPresentation(rawName: string) {
   const size = rawName.match(/(?:^|\s)(\d+(?:[.,]\d+)?)\s*(ML|LT|L|KG|G)\b/i)
-  if (!size) return null
-  const unit = size[2].toLowerCase() === 'lt' ? 'l' : size[2].toLowerCase()
-  return `${size[1].replace('.', ',')} ${unit}`
+  if (size) {
+    const unit = size[2].toLowerCase() === 'lt' ? 'l' : size[2].toLowerCase()
+    return `${size[1].replace('.', ',')} ${unit}`
+  }
+  const pack = rawName.match(/\bC\s*[/\-]?\s*(\d{1,3})\b/i)
+  if (pack) return `${pack[1]} unidades`
+  return null
 }
 
 function stripSplitBarcodePrefix(value: string) {
@@ -39,6 +43,9 @@ function normalizeCommonProductText(value: string) {
     .replace(/[_|]+/g, ' ')
     .replace(/\bCOCA\s+COLA\b/gi, 'Coca-Cola')
     .replace(/\bLEITE\s+INT\b/gi, 'Leite Integral')
+    .replace(/\bÁGUA\s+MIN\b/gi, 'Água Mineral')
+    .replace(/\bAGUA\s+MIN\b/gi, 'Água Mineral')
+    .replace(/\bSELEC\b/gi, 'Select')
     .replace(/\bAGUA\b/gi, 'Água')
     .replace(/\bS\s*[/\\]\s*(?:GAS|BAS)\b/gi, 'Sem Gás')
     .replace(/\bRETOMAVEL\b/gi, 'Retornável')
@@ -65,8 +72,11 @@ function cleanItemName(rawName: string, presentation: string | null) {
 
   if (presentation) {
     const [amount, unit] = presentation.split(' ')
-    const units = unit === 'l' ? '(?:L|LT)' : unit.toUpperCase()
-    name = name.replace(new RegExp(`\\s${amount.replace(',', '[,.]')}\\s*${units}\\b`, 'i'), '').trim()
+    if (unit === 'unidades') name = name.replace(new RegExp(`\\bC\\s*[/\\-]?\\s*${amount}\\b`, 'i'), '').trim()
+    else {
+      const units = unit === 'l' ? '(?:L|LT)' : unit.toUpperCase()
+      name = name.replace(new RegExp(`\\s${amount.replace(',', '[,.]')}\\s*${units}\\b`, 'i'), '').trim()
+    }
   }
 
   name = name
@@ -204,6 +214,47 @@ function extractVisualBlocks(rawText: string) {
   return blocks
 }
 
+function extractBarcodeBlocks(rawText: string) {
+  const lines = normalizeReceiptText(rawText).split('\n').map((line) => line.replace(/\s+/g, ' ').trim()).filter(Boolean)
+  const blocks: IndexedBlock[] = []
+  let current: IndexedBlock | null = null
+  let insideItems = false
+
+  const flush = () => {
+    if (!current) return
+    current.sourceLine = current.lines.join(' ')
+    blocks.push(current)
+    current = null
+  }
+
+  for (const original of lines) {
+    const normalized = normalizeForMatch(original)
+    if (/\\b(descricao|descric[aã]o)\\b/.test(normalized) && /(qtd|vl|total|codigo)/.test(normalized)) {
+      insideItems = true
+      continue
+    }
+    if (!insideItems) continue
+    if (/(qtd\\s*total|valor\\s*total|total\\s*de\\s*itens|cartao\\s*(?:de)?bito|consulte\\s+pela)/.test(normalized)) {
+      flush()
+      break
+    }
+
+    const corrected = original.replace(/[OQ]/g, '0').replace(/[IL]/g, '1')
+    const start = corrected.match(/^\\s*(?:\\d{1,2}\\s+)?(\\d{8,14})\\s+(.+)$/)
+    if (start && /[A-Za-zÀ-ÿ]{2,}/.test(start[2])) {
+      flush()
+      const syntheticIndex = blocks.length + 1
+      const alreadyIndexed = /^\\s*\\d{1,2}\\s+\\d{8,14}\\s+/.test(corrected)
+      current = { index: syntheticIndex, lines: [alreadyIndexed ? original : `${syntheticIndex} ${original}`], sourceLine: original }
+      continue
+    }
+
+    if (current) current.lines.push(original)
+  }
+  flush()
+  return blocks
+}
+
 function parseIndexedBlock(block: IndexedBlock): SmartItem {
   const combined = block.lines.join(' ').replace(/[×]/g, 'X').replace(/\s+/g, ' ').trim()
   let body = combined.replace(/^\s*0?\d{1,2}\s+/, '').trim()
@@ -335,7 +386,10 @@ export function parseReceiptTextSmart(rawText: string) {
   const fallback = tolerantItems(rawText)
   const indexedBlocks = extractIndexedBlocks(rawText)
   const visualBlocks = base.sourceKind === 'nfce' ? extractVisualBlocks(rawText) : []
-  const receiptBlocks = visualBlocks.length > indexedBlocks.length ? visualBlocks : indexedBlocks
+  const barcodeBlocks = base.sourceKind === 'nfce' ? extractBarcodeBlocks(rawText) : []
+  const receiptBlocks = barcodeBlocks.length >= Math.max(3, indexedBlocks.length)
+    ? barcodeBlocks
+    : visualBlocks.length > indexedBlocks.length ? visualBlocks : indexedBlocks
   const indexedItems = receiptBlocks.map(parseIndexedBlock)
 
   const candidates = [...(base.items as any[]), ...fallback, ...indexedItems]
