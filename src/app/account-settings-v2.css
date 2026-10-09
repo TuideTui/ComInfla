@@ -35,6 +35,8 @@
   flex: 1 1 auto;
   scrollbar-width: thin;
   scrollbar-color: rgba(214,169,79,.34) transparent;
+  align-content: start;
+  grid-auto-rows: max-content;
 }
 
 .account-settings-panel-v2 .account-settings-notice {
@@ -43,7 +45,7 @@
 }
 
 .account-settings-panel-v2 .account-section-intro {
-  margin-bottom: 24px;
+  margin-bottom: 8px;
 }
 
 .account-settings-panel-v2 .account-section-intro h3 {
@@ -62,8 +64,7 @@
   margin-bottom: 7px;
 }
 
-.account-settings-panel-v2 .account-profile-form input,
-.account-settings-panel-v2 .account-email-change-card input {
+.account-settings-panel-v2 .account-profile-form input {
   min-height: 48px;
 }
 
@@ -74,9 +75,10 @@
 }
 
 .account-security-section-v2 {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
+  display: grid;
+  align-content: start;
+  grid-auto-rows: max-content;
+  gap: 16px;
 }
 
 .account-email-change-card,
@@ -112,11 +114,73 @@
 .account-email-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
+  gap: 16px;
+  width: 100%;
+}
+
+.account-email-change-card label {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  width: 100%;
+}
+
+.account-email-change-card label > span {
+  color: #aaa69e;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .055em;
+  font-weight: 700;
+}
+
+.account-email-change-card input {
+  width: 100%;
+  min-width: 0;
+  height: 50px;
+  box-sizing: border-box;
+  border: 1px solid #333335;
+  border-radius: 12px;
+  background: #0d0d0e;
+  color: var(--text);
+  padding: 0 14px;
+  outline: none;
+  font: inherit;
+  font-size: .92rem;
+  transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease;
+}
+
+.account-email-change-card input::placeholder {
+  color: #66635e;
+}
+
+.account-email-change-card input:hover {
+  border-color: #414143;
+}
+
+.account-email-change-card input:focus {
+  border-color: var(--gold);
+  background: #101011;
+  box-shadow: 0 0 0 3px rgba(214,169,79,.07);
 }
 
 .account-email-change-card .account-form-actions {
   margin-top: 2px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.account-email-change-card .account-form-actions .ghost-button {
+  min-width: 174px;
+  min-height: 44px;
+  justify-content: center;
+  border-color: rgba(214,169,79,.28);
+  color: var(--gold-light);
+  background: rgba(214,169,79,.045);
+}
+
+.account-email-change-card .account-form-actions .ghost-button:hover {
+  background: rgba(214,169,79,.09);
+  border-color: rgba(214,169,79,.48);
 }
 
 .account-current-session {
@@ -218,5 +282,9 @@
 
   .account-email-grid {
     grid-template-columns: 1fr;
+  }
+
+  .account-email-change-card .account-form-actions .ghost-button {
+    width: 100%;
   }
 }
