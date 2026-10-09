@@ -46,11 +46,20 @@ export async function registerImportedPurchase(payload: ImportedPurchasePayloadT
     return { ok: false, message: 'Revise a importação e mantenha pelo menos um item antes de registrar.' }
   }
 
-  if (!payload.establishment_id && !payload.new_establishment?.name?.trim()) {
-    return { ok: false, message: 'Escolha um estabelecimento ou informe o nome do novo local.' }
+  if (!payload.establishment_id) {
+    return { ok: false, message: 'Escolha um estabelecimento já cadastrado antes de registrar.' }
   }
 
-  const { data, error } = await supabase.rpc('register_receipt_purchase', { p_payload: payload })
+  if (!payload.purchased_at || Number.isNaN(new Date(payload.purchased_at).getTime())) {
+    return { ok: false, message: 'Informe e confirme manualmente a data e o horário da compra.' }
+  }
+
+  const safePayload: ImportedPurchasePayloadType = {
+    ...payload,
+    new_establishment: undefined,
+  }
+
+  const { data, error } = await supabase.rpc('register_receipt_purchase', { p_payload: safePayload })
   if (error) {
     const raw = `${error.message ?? ''} ${error.details ?? ''}`
     if (raw.includes('DUPLICATE_RECEIPT')) {
@@ -70,7 +79,7 @@ export async function registerImportedPurchase(payload: ImportedPurchasePayloadT
     message: 'Compra importada e registrada com sucesso.',
     purchaseId: typeof result.purchase_id === 'string' ? result.purchase_id : null,
     createdProducts: Number(result.created_products ?? 0),
-    createdEstablishment: Boolean(result.created_establishment),
+    createdEstablishment: false,
     itemCount: Number(result.item_count ?? payload.items.length),
     calculatedTotalCents: Number(result.calculated_total_cents ?? 0),
     receiptTotalCents: Number(result.receipt_total_cents ?? payload.receipt_total_cents ?? 0),
