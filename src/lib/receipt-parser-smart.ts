@@ -1,11 +1,7 @@
-import {
-  normalizeForMatch,
-  normalizeReceiptText,
-  parseReceiptText,
-  type ParsedReceipt,
-  type ParsedReceiptItem,
-  type ReceiptConfidence,
-} from '@/lib/receipt-parser'
+import { normalizeForMatch, normalizeReceiptText, parseReceiptText } from '@/lib/receipt-parser'
+
+type Unit = 'unit' | 'kg' | 'g' | 'l' | 'ml'
+type Confidence = 'high' | 'medium' | 'low'
 
 function moneyToCents(raw: string | undefined | null) {
   if (!raw) return 0
@@ -16,21 +12,15 @@ function moneyToCents(raw: string | undefined | null) {
 }
 
 function titleCase(value: string) {
-  return value
-    .toLowerCase()
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((word) => word.length <= 2 ? word.toUpperCase() : word[0].toUpperCase() + word.slice(1))
-    .join(' ')
+  return value.toLowerCase().split(/\s+/).filter(Boolean).map((word) => word.length <= 2 ? word.toUpperCase() : word[0].toUpperCase() + word.slice(1)).join(' ')
 }
 
 function inferPresentation(rawName: string) {
   const size = rawName.match(/(?:^|\s)(\d+(?:[.,]\d+)?)\s*(ML|L|KG|G)\b/i)
-  if (!size) return null
-  return `${size[1].replace('.', ',')} ${size[2].toLowerCase()}`
+  return size ? `${size[1].replace('.', ',')} ${size[2].toLowerCase()}` : null
 }
 
-function unitFromToken(token?: string): ParsedReceiptItem['unit'] {
+function unitFromToken(token?: string): Unit {
   const value = (token ?? '').toLowerCase()
   if (value === 'kg') return 'kg'
   if (value === 'g') return 'g'
@@ -39,16 +29,7 @@ function unitFromToken(token?: string): ParsedReceiptItem['unit'] {
   return 'unit'
 }
 
-function createItem(args: {
-  rawName: string
-  barcode: string | null
-  quantity: number
-  unit: ParsedReceiptItem['unit']
-  unitPriceCents: number
-  totalCents: number
-  sourceLine: string
-  confidence: ReceiptConfidence
-}): ParsedReceiptItem {
+function createItem(args: { rawName: string; barcode: string | null; quantity: number; unit: Unit; unitPriceCents: number; totalCents: number; sourceLine: string; confidence: Confidence }) {
   const presentation = inferPresentation(args.rawName)
   let name = args.rawName.replace(/^\d{6,14}\s+/, '').replace(/\s+/g, ' ').trim()
   if (presentation) {
@@ -81,20 +62,15 @@ function joinLikelySplitLines(lines: string[]) {
     const beginsItem = /^\d{1,3}\s+(?:\d{6,14}\s+)?[A-Za-zÀ-ÿ]/.test(current)
     const alreadyHasQuantity = /\d+(?:[.,]\d{1,3})?\s*(?:UN|KG|G|L|LT|ML)\b/i.test(current)
     const nextLooksLikeValues = /^\d+(?:[.,]\d{1,3})?\s*(?:UN|KG|G|L|LT|ML)\b/i.test(next)
-    if (beginsItem && !alreadyHasQuantity && nextLooksLikeValues) {
-      result.push(`${current} ${next}`)
-      index++
-    } else if (current) {
-      result.push(current)
-    }
+    if (beginsItem && !alreadyHasQuantity && nextLooksLikeValues) { result.push(`${current} ${next}`); index++ }
+    else if (current) result.push(current)
   }
   return result
 }
 
 function tolerantItems(rawText: string) {
-  const text = normalizeReceiptText(rawText)
-  const lines = joinLikelySplitLines(text.split('\n').map((line) => line.trim()).filter(Boolean))
-  const items: ParsedReceiptItem[] = []
+  const lines = joinLikelySplitLines(normalizeReceiptText(rawText).split('\n').map((line) => line.trim()).filter(Boolean))
+  const items: any[] = []
 
   for (const original of lines) {
     const line = original.replace(/[×]/g, 'X').replace(/\s+/g, ' ').trim()
@@ -116,21 +92,10 @@ function tolerantItems(rawText: string) {
       const trailingMoney = [...after.matchAll(/(\d{1,6}[.,]\d{2})/g)]
       const total = trailingMoney.length ? moneyToCents(trailingMoney[trailingMoney.length - 1][1]) : Math.round(quantity * unitPrice)
       if (!unitPrice || !total) continue
-      items.push(createItem({
-        rawName,
-        barcode,
-        quantity,
-        unit: unitFromToken(quantityMatch[2]),
-        unitPriceCents: unitPrice,
-        totalCents: total,
-        sourceLine: original,
-        confidence: 'medium',
-      }))
+      items.push(createItem({ rawName, barcode, quantity, unit: unitFromToken(quantityMatch[2]), unitPriceCents: unitPrice, totalCents: total, sourceLine: original, confidence: 'medium' }))
       continue
     }
 
-    // Último recurso para notas em que o OCR perdeu o marcador UN/KG/X,
-    // mas preservou descrição e os dois valores monetários finais.
     const moneyMatches = [...body.matchAll(/(\d{1,6}[.,]\d{2})/g)]
     if (moneyMatches.length >= 2) {
       const firstMoneyIndex = moneyMatches[moneyMatches.length - 2].index ?? -1
@@ -141,17 +106,8 @@ function tolerantItems(rawText: string) {
       const total = moneyToCents(moneyMatches[moneyMatches.length - 1][1])
       if (!unitPrice || !total) continue
       const ratio = total / unitPrice
-      const quantity = Number.isFinite(ratio) && ratio >= 1 && Math.abs(ratio - Math.round(ratio)) < 0.05 ? Math.round(ratio) : 1
-      items.push(createItem({
-        rawName,
-        barcode,
-        quantity,
-        unit: 'unit',
-        unitPriceCents: unitPrice,
-        totalCents: total,
-        sourceLine: original,
-        confidence: 'low',
-      }))
+      const quantity = Number.isFinite(ratio) && ratio >= 1 && Math.abs(ratio - Math.round(ratio)) < .05 ? Math.round(ratio) : 1
+      items.push(createItem({ rawName, barcode, quantity, unit: 'unit', unitPriceCents: unitPrice, totalCents: total, sourceLine: original, confidence: 'low' }))
     }
   }
 
@@ -164,19 +120,18 @@ function tolerantItems(rawText: string) {
   })
 }
 
-export function parseReceiptTextSmart(rawText: string): ParsedReceipt {
+export function parseReceiptTextSmart(rawText: string) {
   const base = parseReceiptText(rawText)
   const fallback = tolerantItems(rawText)
-
   if (!fallback.length) return base
 
-  const existing = new Set(base.items.map((item) => `${item.barcode || normalizeForMatch(item.name)}|${item.quantity.toFixed(3)}|${item.unitPriceCents}|${item.totalCents}`))
+  const existing = new Set((base.items as any[]).map((item) => `${item.barcode || normalizeForMatch(item.name)}|${item.quantity.toFixed(3)}|${item.unitPriceCents}|${item.totalCents}`))
   const recovered = fallback.filter((item) => !existing.has(`${item.barcode || normalizeForMatch(item.name)}|${item.quantity.toFixed(3)}|${item.unitPriceCents}|${item.totalCents}`))
-  const items = [...base.items, ...recovered]
+  const items = [...(base.items as any[]), ...recovered]
   const warnings = base.warnings.filter((warning) => !warning.startsWith('Não conseguimos separar os itens automaticamente'))
 
   if (recovered.length && base.items.length === 0) warnings.unshift(`${recovered.length} item(ns) foram recuperados por uma leitura tolerante. Revise os campos destacados antes de registrar.`)
   else if (recovered.length) warnings.unshift(`${recovered.length} item(ns) adicionais foram recuperados automaticamente e precisam de revisão.`)
 
-  return { ...base, items, warnings }
+  return { ...base, items, warnings } as typeof base
 }
