@@ -16,8 +16,62 @@ function titleCase(value: string) {
 }
 
 function inferPresentation(rawName: string) {
-  const size = rawName.match(/(?:^|\s)(\d+(?:[.,]\d+)?)\s*(ML|L|KG|G)\b/i)
-  return size ? `${size[1].replace('.', ',')} ${size[2].toLowerCase()}` : null
+  const size = rawName.match(/(?:^|\s)(\d+(?:[.,]\d+)?)\s*(ML|LT|L|KG|G)\b/i)
+  if (!size) return null
+  const unit = size[2].toLowerCase() === 'lt' ? 'l' : size[2].toLowerCase()
+  return `${size[1].replace('.', ',')} ${unit}`
+}
+
+function stripSplitBarcodePrefix(value: string) {
+  const match = value.match(/^((?:\d{2,14}\s+){1,3})(?=[A-Za-zÀ-ÿ])/)
+  if (!match) return value
+  const digits = match[1].replace(/\D/g, '')
+  return digits.length >= 6 && digits.length <= 14 ? value.slice(match[0].length) : value
+}
+
+function normalizeCommonProductText(value: string) {
+  let result = value
+    .replace(/[_|]+/g, ' ')
+    .replace(/\bCOCA\s+COLA\b/gi, 'Coca-Cola')
+    .replace(/\bLEITE\s+INT\b/gi, 'Leite Integral')
+    .replace(/\bAGUA\b/gi, 'Água')
+    .replace(/\bS\s*[/\\]\s*(?:GAS|BAS)\b/gi, 'Sem Gás')
+    .replace(/\bRETOMAVEL\b/gi, 'Retornável')
+    .replace(/\bRETORNAVEL\b/gi, 'Retornável')
+    .replace(/\s+-\s*$/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  if (/retornável/i.test(result) && !/(sacola|garrafa|vasilhame)/i.test(result)) {
+    const firstWord = result.split(' ')[0] ?? ''
+    if (firstWord.length <= 6 || /\d/.test(firstWord)) result = 'Sacola Retornável'
+  }
+  return result
+}
+
+function cleanItemName(rawName: string, presentation: string | null) {
+  let name = stripSplitBarcodePrefix(rawName)
+    .replace(/^\d{6,14}\s+/, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  if (presentation) {
+    const [amount, unit] = presentation.split(' ')
+    const units = unit === 'l' ? '(?:L|LT)' : unit.toUpperCase()
+    name = name.replace(new RegExp(`\\s${amount.replace(',', '[,.]')}\\s*${units}\\b`, 'i'), '').trim()
+  }
+
+  name = name
+    .replace(/\s+(?:T\d{1,3}|F)\s*$/i, '')
+    .replace(/^[^A-Za-zÀ-ÿ]+/, '')
+    .trim()
+
+  name = normalizeCommonProductText(name || rawName)
+  return titleCase(name)
+    .replace(/Coca-Cola/gi, 'Coca-Cola')
+    .replace(/Água/gi, 'Água')
+    .replace(/Sem Gás/gi, 'Sem Gás')
+    .replace(/Retornável/gi, 'Retornável')
 }
 
 function unitFromToken(token?: string): Unit {
@@ -31,16 +85,11 @@ function unitFromToken(token?: string): Unit {
 
 function createItem(args: { rawName: string; barcode: string | null; quantity: number; unit: Unit; unitPriceCents: number; totalCents: number; sourceLine: string; confidence: Confidence }) {
   const presentation = inferPresentation(args.rawName)
-  let name = args.rawName.replace(/^\d{6,14}\s+/, '').replace(/\s+/g, ' ').trim()
-  if (presentation) {
-    const [amount, unit] = presentation.split(' ')
-    if (unit) name = name.replace(new RegExp(`\\s${amount.replace(',', '[,.]')}\\s*${unit}\\b`, 'i'), '').trim()
-  }
-  name = name.replace(/\s+(?:T\d{1,3}|F)\s*$/i, '').trim()
+  const name = cleanItemName(args.rawName, presentation)
   return {
     key: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
     rawName: args.rawName,
-    name: titleCase(name || args.rawName),
+    name,
     barcode: args.barcode,
     presentation,
     quantity: args.quantity > 0 ? args.quantity : 1,
