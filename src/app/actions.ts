@@ -37,7 +37,7 @@ async function removeUserMedia(supabase: Awaited<ReturnType<typeof createClient>
       const files = data ?? []
       if (!files.length) break
 
-      const paths = files.filter((item) => item.name && item.id).map((item) => `${userId}/${folder}/${item.name}`)
+      const paths = files.filter((item) => item.name).map((item) => `${userId}/${folder}/${item.name}`)
       if (paths.length) {
         const { error: removeError } = await bucket.remove(paths)
         if (removeError) return removeError
@@ -138,14 +138,57 @@ export async function updateAccountProfile(formData: FormData): Promise<AccountA
 
   const fullName = String(formData.get('full_name') ?? '').trim()
   const city = String(formData.get('city') ?? '').trim()
-  const state = String(formData.get('state') ?? '').trim().toUpperCase().slice(0, 2)
-  if (fullName.length < 2 || fullName.length > 120) return { ok: false, message: 'Informe um nome válido.' }
+  const rawState = String(formData.get('state') ?? '').trim().toUpperCase()
+  const state = rawState.replace(/[^A-Z]/g, '').slice(0, 2)
 
-  const { error } = await supabase.from('profiles').update({ full_name: fullName, city: city || null, state: state || null, updated_at: new Date().toISOString() }).eq('id', userId)
+  if (fullName.length < 2 || fullName.length > 120) return { ok: false, message: 'Informe um nome válido.' }
+  if (state && state.length !== 2) return { ok: false, message: 'A UF deve conter exatamente 2 letras.' }
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({ full_name: fullName, city: city || null, state: state || null, updated_at: new Date().toISOString() })
+    .eq('id', userId)
+
   if (error) return { ok: false, message: 'Não foi possível salvar o perfil agora.' }
 
   revalidatePath('/app', 'layout')
   return { ok: true, message: 'Perfil atualizado.' }
+}
+
+export async function requestAccountEmailChange(formData: FormData): Promise<AccountActionResult> {
+  const { supabase, userId } = await currentUserId()
+  if (!userId) return { ok: false, message: 'Sua sessão expirou. Entre novamente.' }
+
+  const email = String(formData.get('new_email') ?? '').trim().toLowerCase()
+  const confirmEmail = String(formData.get('confirm_email') ?? '').trim().toLowerCase()
+  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+  if (!emailPattern.test(email)) return { ok: false, message: 'Informe um email válido.' }
+  if (email !== confirmEmail) return { ok: false, message: 'Os emails informados não coincidem.' }
+
+  const { data: userData } = await supabase.auth.getUser()
+  if (userData.user?.email?.toLowerCase() === email) {
+    return { ok: false, message: 'Esse já é o email atual da sua conta.' }
+  }
+
+  const siteUrl = await getSiteUrl()
+  const { error } = await supabase.auth.updateUser(
+    { email },
+    { emailRedirectTo: `${siteUrl}/auth/callback?next=/app` },
+  )
+
+  if (error) {
+    const rateLimited = /rate|security purposes|seconds/i.test(error.message)
+    return {
+      ok: false,
+      message: rateLimited ? 'Aguarde um pouco antes de solicitar outra alteração de email.' : 'Não foi possível solicitar a alteração de email agora.',
+    }
+  }
+
+  return {
+    ok: true,
+    message: 'Solicitação enviada. Confirme a alteração pelos emails de verificação enviados antes que o novo endereço passe a valer.',
+  }
 }
 
 export async function clearMyCominflaData(): Promise<AccountActionResult> {
