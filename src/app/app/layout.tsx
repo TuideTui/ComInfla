@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { AppHeader } from '@/components/app-header'
+import { DestructiveActionGuard } from '@/components/destructive-action-guard'
 import { createClient } from '@/lib/supabase/server'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -21,6 +22,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="app-shared-shell">
+      <DestructiveActionGuard />
       <AppHeader
         firstName={firstName}
         account={{
