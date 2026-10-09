@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useRef, useState, type MouseEvent } from 'react'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { Brand } from './brand'
 
 type ActiveSection = 'principal' | 'cadastrando' | 'comprando' | 'analises' | 'comparar' | 'mapa' | 'fechamento'
@@ -29,23 +29,34 @@ function sectionFromPath(pathname: string): ActiveSection {
 
 export function AppHeader({ active: activeProp, firstName }: { active?: ActiveSection; firstName: string }) {
   const pathname = usePathname()
+  const router = useRouter()
   const active = activeProp ?? sectionFromPath(pathname)
   const initial = (firstName || 'U').slice(0, 1).toUpperCase()
   const [pendingHref, setPendingHref] = useState<string | null>(null)
-  const fallbackTimer = useRef<number | null>(null)
+  const navigationTimer = useRef<number | null>(null)
+  const safetyTimer = useRef<number | null>(null)
+
+  useEffect(() => {
+    navItems.forEach((item) => router.prefetch(item.href))
+  }, [router])
 
   useEffect(() => {
     setPendingHref(null)
-    document.body.classList.remove('app-route-pending')
-    if (fallbackTimer.current) {
-      window.clearTimeout(fallbackTimer.current)
-      fallbackTimer.current = null
+    document.body.classList.remove('app-route-leaving')
+    if (navigationTimer.current) {
+      window.clearTimeout(navigationTimer.current)
+      navigationTimer.current = null
+    }
+    if (safetyTimer.current) {
+      window.clearTimeout(safetyTimer.current)
+      safetyTimer.current = null
     }
   }, [pathname])
 
   useEffect(() => () => {
-    document.body.classList.remove('app-route-pending')
-    if (fallbackTimer.current) window.clearTimeout(fallbackTimer.current)
+    document.body.classList.remove('app-route-leaving')
+    if (navigationTimer.current) window.clearTimeout(navigationTimer.current)
+    if (safetyTimer.current) window.clearTimeout(safetyTimer.current)
   }, [])
 
   function beginNavigation(event: MouseEvent<HTMLAnchorElement>, href: string) {
@@ -56,41 +67,43 @@ export function AppHeader({ active: activeProp, firstName }: { active?: ActiveSe
       event.ctrlKey ||
       event.shiftKey ||
       event.altKey ||
-      pathname === href
+      pathname === href ||
+      pendingHref
     ) return
 
+    event.preventDefault()
     setPendingHref(href)
-    document.body.classList.add('app-route-pending')
+    document.body.classList.add('app-route-leaving')
 
-    if (fallbackTimer.current) window.clearTimeout(fallbackTimer.current)
-    fallbackTimer.current = window.setTimeout(() => {
+    navigationTimer.current = window.setTimeout(() => {
+      router.push(href)
+    }, 165)
+
+    safetyTimer.current = window.setTimeout(() => {
       setPendingHref(null)
-      document.body.classList.remove('app-route-pending')
+      document.body.classList.remove('app-route-leaving')
     }, 5000)
   }
 
   return (
-    <>
-      <div className={`app-navigation-progress${pendingHref ? ' is-active' : ''}`} aria-hidden="true"><i /></div>
-      <header className="app-header premium-card app-header-persistent">
-        <Brand href="/app" className="app-brand" />
-        <nav className="app-nav" aria-label="Navegação da plataforma">
-          {navItems.map((item) => (
-            <Link
-              key={item.key}
-              className={`${active === item.key ? 'active' : ''}${pendingHref === item.href ? ' pending' : ''}`}
-              href={item.href}
-              prefetch
-              onClick={(event) => beginNavigation(event, item.href)}
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-        <form action="/auth/signout" method="post">
-          <button className="avatar-button" title="Sair da conta" aria-label="Sair da conta">{initial}</button>
-        </form>
-      </header>
-    </>
+    <header className="app-header premium-card app-header-persistent">
+      <Brand href="/app" className="app-brand" />
+      <nav className="app-nav" aria-label="Navegação da plataforma">
+        {navItems.map((item) => (
+          <Link
+            key={item.key}
+            className={`${active === item.key ? 'active' : ''}${pendingHref === item.href ? ' pending' : ''}`}
+            href={item.href}
+            prefetch
+            onClick={(event) => beginNavigation(event, item.href)}
+          >
+            {item.label}
+          </Link>
+        ))}
+      </nav>
+      <form action="/auth/signout" method="post">
+        <button className="avatar-button" title="Sair da conta" aria-label="Sair da conta">{initial}</button>
+      </form>
+    </header>
   )
 }
