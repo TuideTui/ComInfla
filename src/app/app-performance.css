@@ -5,28 +5,90 @@
   background: radial-gradient(circle at 82% -10%, rgba(214,169,79,.08), transparent 28%), var(--bg);
 }
 
+.app-page-host {
+  transition: opacity .14s ease, transform .14s ease;
+}
+
 .app-page-host .app-shell {
   min-height: auto;
   padding: 0;
   background: transparent;
 }
 
-/* Enquanto as páginas antigas ainda renderizam o próprio header, o layout compartilhado é a única versão visível. */
+/* Durante a migração, páginas antigas ainda podem renderizar o próprio header. O layout compartilhado é o único visível. */
 .app-page-host .app-header {
   display: none;
 }
 
+/* O header autenticado fica persistente e evita blur contínuo, que é mais caro em composição. */
+.app-header-persistent {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  background: rgba(20,20,21,.97) !important;
+}
+
+.app-nav a.pending {
+  color: var(--gold-light);
+}
+
+/* Feedback imediato no clique de navegação. */
+body.app-route-pending .app-page-host {
+  opacity: .48;
+  transform: translateY(4px);
+  pointer-events: none;
+}
+
+.app-navigation-progress {
+  position: fixed;
+  z-index: 3000;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  opacity: 0;
+  pointer-events: none;
+  overflow: hidden;
+  background: rgba(214,169,79,.07);
+  transition: opacity .12s ease;
+}
+
+.app-navigation-progress i {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform: scaleX(.06);
+  transform-origin: left center;
+  background: linear-gradient(90deg, #9d7429, var(--gold-light), #f8dda1);
+  box-shadow: 0 0 16px rgba(240,207,135,.42);
+}
+
+.app-navigation-progress.is-active {
+  opacity: 1;
+}
+
+.app-navigation-progress.is-active i {
+  animation: appNavigationProgress 1.25s cubic-bezier(.15,.72,.26,1) both;
+}
+
+@keyframes appNavigationProgress {
+  0% { transform: scaleX(.06); }
+  45% { transform: scaleX(.56); }
+  78% { transform: scaleX(.78); }
+  100% { transform: scaleX(.9); }
+}
+
+/* Entrada do conteúdo novo após a rota resolver. */
 .app-route-transition {
-  animation: appRouteIn .22s cubic-bezier(.2,.75,.25,1) both;
+  animation: appRouteIn .28s cubic-bezier(.2,.75,.25,1) both;
   transform-origin: top center;
 }
 
 @keyframes appRouteIn {
-  from { opacity: 0; transform: translateY(7px); }
+  from { opacity: 0; transform: translateY(9px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* Skeletons: resposta visual imediata enquanto Server Components terminam de carregar. */
+/* Skeletons: resposta visual enquanto Server Components terminam de carregar. */
 .app-loading-page .app-content {
   min-height: 620px;
 }
@@ -94,22 +156,45 @@
   border-radius: var(--radius);
 }
 
-/* O blur de tela inteira era caro para a GPU e causava atraso perceptível em hover dentro do modal. */
+/* Modal: nenhuma filtragem de tela inteira e menos camadas compostas. */
 .registration-modal-backdrop {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
-  background: rgba(0,0,0,.82) !important;
+  background: rgba(0,0,0,.86) !important;
+  animation-duration: .12s !important;
 }
 
 .registration-modal {
-  box-shadow: 0 28px 70px rgba(0,0,0,.48) !important;
-  contain: layout paint;
-  will-change: transform, opacity;
-  transform: translateZ(0);
+  box-shadow: 0 20px 52px rgba(0,0,0,.5) !important;
+  animation-duration: .16s !important;
+  will-change: auto !important;
+  transform: none;
 }
 
 .registration-modal-body {
   overscroll-behavior: contain;
+}
+
+.registration-modal .ghost-button,
+.registration-modal .button,
+.registration-modal .danger-link,
+.registration-modal .registration-modal-close {
+  transition: color .11s ease, background-color .11s ease, border-color .11s ease, opacity .11s ease !important;
+}
+
+.registration-modal .button:hover,
+.registration-modal .ghost-button:hover {
+  transform: none !important;
+}
+
+/* Ao abrir o modal, pausamos efeitos visuais do fundo que não agregam naquele momento. */
+body.registration-modal-open .app-header-persistent {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+body.registration-modal-open .app-route-transition {
+  animation-play-state: paused !important;
 }
 
 @media (max-width: 980px) {
@@ -126,7 +211,9 @@
 
 @media (prefers-reduced-motion: reduce) {
   .app-route-transition,
-  .skeleton::after {
-    animation: none !important;
+  .skeleton::after,
+  .app-navigation-progress.is-active i {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
   }
 }
