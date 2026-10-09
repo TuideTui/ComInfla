@@ -25,31 +25,12 @@
   to { opacity: 1; transform: none; }
 }
 
-.app-page-host {
-  transition: opacity .26s cubic-bezier(.4,0,.2,1), transform .26s cubic-bezier(.4,0,.2,1), filter .26s ease;
-}
+.app-page-host { transition: opacity .26s cubic-bezier(.4,0,.2,1), transform .26s cubic-bezier(.4,0,.2,1), filter .26s ease; }
+.app-page-host .app-shell { min-height: auto; padding: 0; background: transparent; }
+.app-page-host .app-header { display: none; }
+.app-nav a { transition: color .2s ease, opacity .2s ease; }
+.app-nav a.pending { color: var(--gold-light); opacity: .72; }
 
-.app-page-host .app-shell {
-  min-height: auto;
-  padding: 0;
-  background: transparent;
-}
-
-/* Durante a migração, páginas antigas ainda podem renderizar o próprio header. O layout compartilhado é o único visível. */
-.app-page-host .app-header {
-  display: none;
-}
-
-.app-nav a {
-  transition: color .2s ease, opacity .2s ease;
-}
-
-.app-nav a.pending {
-  color: var(--gold-light);
-  opacity: .72;
-}
-
-/* Saída real da tela atual antes do router.push. */
 body.app-route-leaving .app-page-host {
   opacity: 0;
   transform: translateY(-10px) scale(.994);
@@ -57,144 +38,47 @@ body.app-route-leaving .app-page-host {
   pointer-events: none;
 }
 
-/* Entrada da nova tela. O template remonta a cada rota e reinicia esta animação. */
-.app-route-transition {
-  opacity: 0;
-  animation: appPageIn .52s cubic-bezier(.16,.82,.2,1) forwards;
-}
+.app-route-transition { opacity: 0; animation: appPageIn .52s cubic-bezier(.16,.82,.2,1) forwards; }
+@keyframes appPageIn { 0% { opacity: 0; transform: translateY(16px) scale(.996); } 58% { opacity: 1; } 100% { opacity: 1; transform: none; } }
 
-@keyframes appPageIn {
-  0% { opacity: 0; transform: translateY(16px) scale(.996); }
-  58% { opacity: 1; }
-  100% { opacity: 1; transform: none; }
-}
-
-/* Heading e blocos principais entram em sequência, como nas telas de autenticação. */
-.app-route-transition .app-content > * {
-  opacity: 0;
-  animation: appSectionIn .5s cubic-bezier(.16,.82,.2,1) forwards;
-}
-
+.app-route-transition .app-content > * { opacity: 0; animation: appSectionIn .5s cubic-bezier(.16,.82,.2,1) forwards; }
 .app-route-transition .app-content > *:nth-child(1) { animation-delay: .07s; }
 .app-route-transition .app-content > *:nth-child(2) { animation-delay: .12s; }
 .app-route-transition .app-content > *:nth-child(3) { animation-delay: .17s; }
 .app-route-transition .app-content > *:nth-child(4) { animation-delay: .22s; }
 .app-route-transition .app-content > *:nth-child(5) { animation-delay: .27s; }
 .app-route-transition .app-content > *:nth-child(n+6) { animation-delay: .3s; }
+@keyframes appSectionIn { from { opacity: 0; transform: translateY(13px); } to { opacity: 1; transform: none; } }
 
-@keyframes appSectionIn {
-  from { opacity: 0; transform: translateY(13px); }
-  to { opacity: 1; transform: none; }
-}
-
-/* Cards também surgem em ondas curtas dentro das grades. */
 .app-route-transition .metric-grid > *,
 .app-route-transition .quick-context-grid > *,
 .app-route-transition .registering-launch-grid > *,
 .app-route-transition .catalog-preview-grid > *,
 .app-route-transition .analytics-grid > *,
-.app-route-transition .map-place-grid > * {
-  opacity: 0;
-  animation: appCardIn .46s cubic-bezier(.16,.82,.2,1) forwards;
-}
+.app-route-transition .map-place-grid > * { opacity: 0; animation: appCardIn .46s cubic-bezier(.16,.82,.2,1) forwards; }
 
-.app-route-transition .metric-grid > *:nth-child(1),
-.app-route-transition .quick-context-grid > *:nth-child(1),
-.app-route-transition .registering-launch-grid > *:nth-child(1),
-.app-route-transition .catalog-preview-grid > *:nth-child(1),
-.app-route-transition .analytics-grid > *:nth-child(1),
-.app-route-transition .map-place-grid > *:nth-child(1) { animation-delay: .18s; }
-
-.app-route-transition .metric-grid > *:nth-child(2),
-.app-route-transition .quick-context-grid > *:nth-child(2),
-.app-route-transition .registering-launch-grid > *:nth-child(2),
-.app-route-transition .catalog-preview-grid > *:nth-child(2),
-.app-route-transition .analytics-grid > *:nth-child(2),
-.app-route-transition .map-place-grid > *:nth-child(2) { animation-delay: .23s; }
-
-.app-route-transition .metric-grid > *:nth-child(3),
-.app-route-transition .quick-context-grid > *:nth-child(3),
-.app-route-transition .map-place-grid > *:nth-child(3) { animation-delay: .28s; }
-
-.app-route-transition .metric-grid > *:nth-child(4),
-.app-route-transition .map-place-grid > *:nth-child(4) { animation-delay: .33s; }
-
+.app-route-transition .metric-grid > *:nth-child(1), .app-route-transition .quick-context-grid > *:nth-child(1), .app-route-transition .registering-launch-grid > *:nth-child(1), .app-route-transition .catalog-preview-grid > *:nth-child(1), .app-route-transition .analytics-grid > *:nth-child(1), .app-route-transition .map-place-grid > *:nth-child(1) { animation-delay: .18s; }
+.app-route-transition .metric-grid > *:nth-child(2), .app-route-transition .quick-context-grid > *:nth-child(2), .app-route-transition .registering-launch-grid > *:nth-child(2), .app-route-transition .catalog-preview-grid > *:nth-child(2), .app-route-transition .analytics-grid > *:nth-child(2), .app-route-transition .map-place-grid > *:nth-child(2) { animation-delay: .23s; }
+.app-route-transition .metric-grid > *:nth-child(3), .app-route-transition .quick-context-grid > *:nth-child(3), .app-route-transition .map-place-grid > *:nth-child(3) { animation-delay: .28s; }
+.app-route-transition .metric-grid > *:nth-child(4), .app-route-transition .map-place-grid > *:nth-child(4) { animation-delay: .33s; }
 .app-route-transition .map-place-grid > *:nth-child(n+5) { animation-delay: .36s; }
+@keyframes appCardIn { from { opacity: 0; transform: translateY(10px) scale(.99); } to { opacity: 1; transform: none; } }
 
-@keyframes appCardIn {
-  from { opacity: 0; transform: translateY(10px) scale(.99); }
-  to { opacity: 1; transform: none; }
-}
-
-/* Skeletons: resposta visual enquanto Server Components terminam de carregar. */
-.app-loading-page .app-content {
-  min-height: 620px;
-}
-
-.app-skeleton-heading {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 24px;
-  margin-bottom: 32px;
-}
-
-.app-skeleton-heading > div {
-  width: min(560px, 72%);
-  display: grid;
-  gap: 11px;
-}
-
-.skeleton {
-  display: block;
-  position: relative;
-  overflow: hidden;
-  background: #171718;
-  border: 1px solid #222223;
-}
-
-.skeleton::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  transform: translateX(-100%);
-  background: linear-gradient(100deg, transparent 20%, rgba(255,255,255,.045) 46%, rgba(214,169,79,.055) 52%, transparent 78%);
-  animation: appSkeletonSweep 1.35s ease-in-out infinite;
-}
-
-@keyframes appSkeletonSweep {
-  to { transform: translateX(100%); }
-}
-
+.app-loading-page .app-content { min-height: 620px; }
+.app-skeleton-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 32px; }
+.app-skeleton-heading > div { width: min(560px, 72%); display: grid; gap: 11px; }
+.skeleton { display: block; position: relative; overflow: hidden; background: #171718; border: 1px solid #222223; }
+.skeleton::after { content: ''; position: absolute; inset: 0; transform: translateX(-100%); background: linear-gradient(100deg, transparent 20%, rgba(255,255,255,.045) 46%, rgba(214,169,79,.055) 52%, transparent 78%); animation: appSkeletonSweep 1.35s ease-in-out infinite; }
+@keyframes appSkeletonSweep { to { transform: translateX(100%); } }
 .skeleton-kicker { width: 122px; height: 10px; border-radius: 999px; }
 .skeleton-title { width: min(360px, 86%); height: 38px; border-radius: 10px; }
 .skeleton-copy { width: min(520px, 100%); height: 16px; border-radius: 999px; }
 .skeleton-action { width: 150px; height: 46px; border-radius: 13px; }
+.app-skeleton-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+.skeleton-card { height: 166px; border-radius: var(--radius); }
+.app-skeleton-main-grid { display: grid; grid-template-columns: 1.75fr 1fr; gap: 20px; margin-top: 20px; }
+.skeleton-panel { height: 390px; border-radius: var(--radius); }
 
-.app-skeleton-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 18px;
-}
-
-.skeleton-card {
-  height: 166px;
-  border-radius: var(--radius);
-}
-
-.app-skeleton-main-grid {
-  display: grid;
-  grid-template-columns: 1.75fr 1fr;
-  gap: 20px;
-  margin-top: 20px;
-}
-
-.skeleton-panel {
-  height: 390px;
-  border-radius: var(--radius);
-}
-
-/* Modal renderizado por portal diretamente no body: sempre ocupa a viewport inteira. */
 .registration-modal-backdrop {
   position: fixed !important;
   inset: 0 !important;
@@ -204,58 +88,139 @@ body.app-route-leaving .app-page-host {
   padding: clamp(18px, 3vh, 32px) !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
-  background:
-    radial-gradient(circle at 50% 34%, rgba(214,169,79,.035), transparent 34%),
-    rgba(3,3,4,.82) !important;
+  background: radial-gradient(circle at 50% 34%, rgba(214,169,79,.035), transparent 34%), rgba(3,3,4,.82) !important;
   animation: modalBackdropIn .16s ease both !important;
 }
+@keyframes modalBackdropIn { from { opacity: 0; } to { opacity: 1; } }
+.registration-modal { max-height: calc(100dvh - 36px) !important; margin: 0 !important; box-shadow: 0 24px 64px rgba(0,0,0,.54) !important; animation: modalPanelIn .2s cubic-bezier(.18,.78,.22,1) both !important; will-change: auto !important; }
+@keyframes modalPanelIn { from { opacity: 0; transform: translateY(10px) scale(.992); } to { opacity: 1; transform: none; } }
+.registration-modal-body { overscroll-behavior: contain; }
+.registration-modal .ghost-button, .registration-modal .button, .registration-modal .danger-link, .registration-modal .registration-modal-close { transition: color .11s ease, background-color .11s ease, border-color .11s ease, opacity .11s ease !important; }
+.registration-modal .button:hover, .registration-modal .ghost-button:hover { transform: none !important; }
+body.registration-modal-open .app-header-persistent, body.registration-modal-open .app-page-host { pointer-events: none; }
+body.registration-modal-open .registration-modal-backdrop { pointer-events: auto; }
 
-@keyframes modalBackdropIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+/* Painel de conta */
+.avatar-button { transition: transform .16s ease, box-shadow .16s ease, background-color .16s ease; }
+.avatar-button:hover { transform: translateY(-1px); box-shadow: 0 0 0 4px rgba(214,169,79,.12); }
+.avatar-static { display: grid; place-items: center; cursor: default; }
+
+.account-settings-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 6200;
+  display: grid;
+  place-items: center;
+  padding: 28px;
+  background: rgba(3,3,4,.8);
+  animation: modalBackdropIn .18s ease both;
 }
 
-.registration-modal {
-  max-height: calc(100dvh - 36px) !important;
-  margin: 0 !important;
-  box-shadow: 0 24px 64px rgba(0,0,0,.54) !important;
-  animation: modalPanelIn .2s cubic-bezier(.18,.78,.22,1) both !important;
-  will-change: auto !important;
+.account-settings-panel {
+  width: min(980px, 100%);
+  height: min(720px, calc(100dvh - 56px));
+  display: grid;
+  grid-template-columns: 250px 1fr;
+  overflow: hidden;
+  border: 1px solid rgba(214,169,79,.25);
+  border-radius: 24px;
+  background: #111112;
+  box-shadow: 0 34px 90px rgba(0,0,0,.56);
+  animation: accountPanelIn .24s cubic-bezier(.18,.78,.22,1) both;
 }
+@keyframes accountPanelIn { from { opacity: 0; transform: translateY(12px) scale(.992); } to { opacity: 1; transform: none; } }
 
-@keyframes modalPanelIn {
-  from { opacity: 0; transform: translateY(10px) scale(.992); }
-  to { opacity: 1; transform: none; }
-}
+.account-settings-sidebar { padding: 24px 18px 18px; background: #0d0d0e; border-right: 1px solid #252526; display: flex; flex-direction: column; min-width: 0; }
+.account-sidebar-user { display: flex; align-items: center; gap: 12px; padding: 4px 7px 22px; border-bottom: 1px solid #242425; }
+.account-sidebar-user > div { min-width: 0; display: grid; gap: 4px; }
+.account-sidebar-user strong, .account-sidebar-user small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.account-sidebar-user small { color: var(--muted); font-size: 11px; }
+.account-avatar-large { width: 42px; height: 42px; flex: 0 0 42px; border-radius: 50%; display: grid; place-items: center; background: var(--gold); color: #111; font-weight: 800; }
+.account-settings-sidebar nav { display: grid; gap: 5px; margin-top: 18px; }
+.account-settings-sidebar nav button { border: 1px solid transparent; border-radius: 12px; background: transparent; color: var(--text); text-align: left; padding: 11px 12px; display: grid; gap: 3px; transition: .15s ease; }
+.account-settings-sidebar nav button small { color: #74716b; font-size: 10px; }
+.account-settings-sidebar nav button:hover { background: #171718; }
+.account-settings-sidebar nav button.active { background: rgba(214,169,79,.09); border-color: rgba(214,169,79,.25); color: var(--gold-light); }
+.account-signout-form { margin-top: auto; padding-top: 18px; border-top: 1px solid #242425; }
+.account-signout-button { width: 100%; min-height: 42px; border-radius: 11px; border: 1px solid rgba(239,112,117,.28); background: rgba(239,112,117,.07); color: #ef7d82; font-weight: 700; }
+.account-signout-button:hover { background: rgba(239,112,117,.13); }
 
-.registration-modal-body {
-  overscroll-behavior: contain;
-}
+.account-settings-content { min-width: 0; overflow: auto; padding: 30px 32px 36px; }
+.account-settings-header { position: sticky; top: -30px; z-index: 2; margin: -30px -32px 24px; padding: 26px 32px 18px; display: flex; justify-content: space-between; align-items: flex-start; gap: 18px; background: linear-gradient(#111112 80%, rgba(17,17,18,.94)); border-bottom: 1px solid #222223; }
+.account-settings-header h2 { margin: 5px 0 0; font-size: 28px; letter-spacing: -.035em; }
+.account-settings-close { width: 36px; height: 36px; border-radius: 11px; border: 1px solid #303032; background: #171718; color: var(--text); font-size: 22px; }
+.account-settings-close:hover { border-color: rgba(214,169,79,.4); color: var(--gold-light); }
+.account-settings-notice { margin-bottom: 18px; border-radius: 12px; padding: 12px 14px; font-size: 12px; }
+.account-settings-notice.success { color: #8ae8aa; background: rgba(107,220,148,.07); border: 1px solid rgba(107,220,148,.22); }
+.account-settings-notice.error { color: #f19a9e; background: rgba(239,112,117,.07); border: 1px solid rgba(239,112,117,.22); }
+.account-section-body { display: grid; gap: 20px; }
+.account-section-intro h3 { margin: 0 0 7px; font-size: 20px; }
+.account-section-intro p, .account-muted-note { margin: 0; color: var(--muted); line-height: 1.6; font-size: 13px; }
+.account-profile-form { display: grid; gap: 16px; }
+.account-profile-form label { display: grid; gap: 7px; }
+.account-profile-form label > span, .confirm-phrase-field > span { color: #aaa69e; font-size: 10px; text-transform: uppercase; letter-spacing: .055em; font-weight: 700; }
+.account-profile-form input, .confirm-phrase-field input { width: 100%; height: 46px; border: 1px solid #333335; border-radius: 12px; background: #0d0d0e; color: var(--text); padding: 0 14px; outline: none; }
+.account-profile-form input:focus, .confirm-phrase-field input:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(214,169,79,.07); }
+.account-profile-form input:disabled { color: #77736c; }
+.account-profile-form label small { color: #6f6c66; font-size: 10px; }
+.account-form-grid { display: grid; grid-template-columns: 1fr 100px; gap: 12px; }
+.account-profile-meta { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; }
+.account-profile-meta span { padding: 12px; border: 1px solid #282829; background: #0e0e0f; border-radius: 12px; display: grid; gap: 4px; }
+.account-profile-meta small { color: #74716b; font-size: 10px; text-transform: uppercase; }
+.account-profile-meta b { font-size: 12px; color: #c8c3b9; overflow: hidden; text-overflow: ellipsis; }
+.account-form-actions { display: flex; justify-content: flex-end; }
 
-.registration-modal .ghost-button,
-.registration-modal .button,
-.registration-modal .danger-link,
-.registration-modal .registration-modal-close {
-  transition: color .11s ease, background-color .11s ease, border-color .11s ease, opacity .11s ease !important;
-}
+.account-plan-card { border: 1px solid #2c2c2e; border-radius: 16px; padding: 20px; display: flex; justify-content: space-between; gap: 20px; background: #0e0e0f; }
+.account-plan-card.current { border-color: rgba(214,169,79,.32); background: linear-gradient(135deg, rgba(214,169,79,.08), #0e0e0f 55%); }
+.account-plan-card span { color: var(--gold); font-size: 10px; font-weight: 800; letter-spacing: .06em; }
+.account-plan-card h3 { margin: 7px 0 5px; }
+.account-plan-card p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.account-plan-card > b { align-self: flex-start; color: var(--gold-light); font-size: 11px; border: 1px solid rgba(214,169,79,.25); border-radius: 999px; padding: 6px 9px; }
+.account-plan-card.future { opacity: .72; }
 
-.registration-modal .button:hover,
-.registration-modal .ghost-button:hover {
-  transform: none !important;
-}
+.account-security-row, .account-danger-actions { border: 1px solid #29292a; border-radius: 15px; padding: 17px; display: flex; justify-content: space-between; align-items: center; gap: 18px; background: #0e0e0f; }
+.account-security-row > div, .account-danger-actions > div { display: grid; gap: 5px; }
+.account-security-row span, .account-danger-actions p { color: var(--muted); font-size: 12px; margin: 0; line-height: 1.5; }
+.account-security-state { color: #8ae8aa !important; font-weight: 700; }
+.account-security-note, .account-data-warning { border-radius: 15px; padding: 17px; background: rgba(214,169,79,.055); border: 1px solid rgba(214,169,79,.18); }
+.account-security-note p, .account-data-warning p { color: var(--muted); margin: 6px 0 0; font-size: 12px; line-height: 1.55; }
+.data-policy-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.data-policy-grid article { border: 1px solid #29292a; background: #0e0e0f; border-radius: 14px; padding: 16px; }
+.data-policy-grid p { color: var(--muted); margin: 6px 0 0; font-size: 11px; line-height: 1.55; }
+.account-danger-actions { border-color: rgba(239,112,117,.16); }
+.account-danger-actions.critical { border-color: rgba(239,112,117,.32); background: rgba(239,112,117,.035); }
+.account-danger-actions .danger-button { flex: 0 0 auto; }
+.secondary-danger { background: transparent !important; }
 
-body.registration-modal-open .app-header-persistent,
-body.registration-modal-open .app-page-host {
-  pointer-events: none;
-}
-
-body.registration-modal-open .registration-modal-backdrop {
-  pointer-events: auto;
-}
+/* Confirmação reutilizada por exclusões em toda a aplicação. */
+.confirm-dialog-backdrop { position: fixed; inset: 0; z-index: 7000; display: grid; place-items: center; padding: 20px; background: rgba(2,2,3,.84); animation: modalBackdropIn .14s ease both; }
+.confirm-dialog-card { width: min(470px, 100%); border: 1px solid rgba(239,112,117,.3); border-radius: 20px; padding: 24px; background: #131314; box-shadow: 0 28px 80px rgba(0,0,0,.58); display: grid; gap: 18px; animation: modalPanelIn .18s cubic-bezier(.18,.78,.22,1) both; }
+.confirm-dialog-icon { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; color: #f19a9e; background: rgba(239,112,117,.1); border: 1px solid rgba(239,112,117,.25); font-weight: 900; }
+.confirm-dialog-card h3 { margin: 6px 0 7px; font-size: 21px; }
+.confirm-dialog-card p { margin: 0; color: var(--muted); line-height: 1.55; font-size: 12px; }
+.confirm-phrase-field { display: grid; gap: 8px; }
+.confirm-dialog-actions { display: flex; justify-content: flex-end; gap: 9px; }
+.confirm-danger-button:disabled { opacity: .45; cursor: not-allowed; }
 
 @media (max-width: 980px) {
   .app-skeleton-grid { grid-template-columns: repeat(2, 1fr); }
   .app-skeleton-main-grid { grid-template-columns: 1fr; }
+  .account-settings-panel { grid-template-columns: 205px 1fr; }
+}
+
+@media (max-width: 700px) {
+  .account-settings-backdrop { padding: 8px; }
+  .account-settings-panel { height: calc(100dvh - 16px); grid-template-columns: 1fr; grid-template-rows: auto 1fr; border-radius: 18px; }
+  .account-settings-sidebar { padding: 14px; border-right: 0; border-bottom: 1px solid #252526; }
+  .account-sidebar-user { padding-bottom: 12px; }
+  .account-settings-sidebar nav { grid-template-columns: repeat(4, minmax(0,1fr)); margin-top: 10px; gap: 4px; }
+  .account-settings-sidebar nav button { padding: 8px; text-align: center; }
+  .account-settings-sidebar nav button small { display: none; }
+  .account-signout-form { display: none; }
+  .account-settings-content { padding: 22px 18px 28px; }
+  .account-settings-header { top: -22px; margin: -22px -18px 20px; padding: 20px 18px 15px; }
+  .data-policy-grid, .account-profile-meta { grid-template-columns: 1fr; }
+  .account-danger-actions, .account-security-row { align-items: flex-start; flex-direction: column; }
 }
 
 @media (max-width: 620px) {
@@ -265,38 +230,12 @@ body.registration-modal-open .registration-modal-backdrop {
   .app-skeleton-heading > div { width: 100%; }
   .registration-modal-backdrop { padding: 10px !important; }
   .registration-modal { max-height: calc(100dvh - 20px) !important; }
+  .account-form-grid { grid-template-columns: 1fr 82px; }
 }
 
-/* Mesmo com movimento reduzido, mantemos um fade curto para não haver corte seco. */
 @media (prefers-reduced-motion: reduce) {
-  .app-shared-shell,
-  .app-header-persistent,
-  .app-route-transition,
-  .app-route-transition .app-content > *,
-  .app-route-transition .metric-grid > *,
-  .app-route-transition .quick-context-grid > *,
-  .app-route-transition .registering-launch-grid > *,
-  .app-route-transition .catalog-preview-grid > *,
-  .app-route-transition .analytics-grid > *,
-  .app-route-transition .map-place-grid > * {
-    transform: none !important;
-    animation-duration: .22s !important;
-    animation-delay: 0ms !important;
-  }
-
-  .app-page-host {
-    transition: opacity .2s ease !important;
-  }
-
-  body.app-route-leaving .app-page-host {
-    transform: none !important;
-    filter: none !important;
-  }
-
-  .skeleton::after,
-  .registration-modal-backdrop,
-  .registration-modal {
-    animation-duration: .12s !important;
-    animation-delay: 0ms !important;
-  }
+  .app-shared-shell, .app-header-persistent, .app-route-transition, .app-route-transition .app-content > *, .app-route-transition .metric-grid > *, .app-route-transition .quick-context-grid > *, .app-route-transition .registering-launch-grid > *, .app-route-transition .catalog-preview-grid > *, .app-route-transition .analytics-grid > *, .app-route-transition .map-place-grid > * { transform: none !important; animation-duration: .22s !important; animation-delay: 0ms !important; }
+  .app-page-host { transition: opacity .2s ease !important; }
+  body.app-route-leaving .app-page-host { transform: none !important; filter: none !important; }
+  .skeleton::after, .registration-modal-backdrop, .registration-modal, .account-settings-backdrop, .account-settings-panel, .confirm-dialog-backdrop, .confirm-dialog-card { animation-duration: .12s !important; animation-delay: 0ms !important; }
 }
