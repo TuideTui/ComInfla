@@ -1,0 +1,222 @@
+/* Account settings v2 — painel mais amplo e confortável */
+.account-settings-backdrop {
+  padding: clamp(24px, 4vh, 48px) !important;
+}
+
+.account-settings-panel.account-settings-panel-v2 {
+  width: min(1180px, calc(100vw - 72px)) !important;
+  height: min(820px, calc(100dvh - 72px)) !important;
+  max-width: none !important;
+  max-height: none !important;
+  grid-template-columns: 270px minmax(0, 1fr) !important;
+}
+
+.account-settings-panel-v2 .account-settings-sidebar {
+  padding: 26px 20px 18px !important;
+}
+
+.account-settings-panel-v2 .account-settings-content {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.account-settings-panel-v2 .account-settings-header {
+  padding: 28px 34px 20px !important;
+  flex: 0 0 auto;
+}
+
+.account-settings-panel-v2 .account-section-body {
+  padding: 26px 34px 34px !important;
+  overflow-y: auto;
+  min-height: 0;
+  flex: 1 1 auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(214,169,79,.34) transparent;
+}
+
+.account-settings-panel-v2 .account-settings-notice {
+  margin: 18px 34px 0 !important;
+  flex: 0 0 auto;
+}
+
+.account-settings-panel-v2 .account-section-intro {
+  margin-bottom: 24px;
+}
+
+.account-settings-panel-v2 .account-section-intro h3 {
+  font-size: 1.12rem;
+  margin-bottom: 7px;
+}
+
+.account-settings-panel-v2 .account-profile-form,
+.account-settings-panel-v2 .account-email-change-card {
+  gap: 18px;
+}
+
+.account-settings-panel-v2 .account-profile-form label > span,
+.account-settings-panel-v2 .account-email-change-card label > span {
+  display: block;
+  margin-bottom: 7px;
+}
+
+.account-settings-panel-v2 .account-profile-form input,
+.account-settings-panel-v2 .account-email-change-card input {
+  min-height: 48px;
+}
+
+.account-settings-panel-v2 input[name='state'] {
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  font-weight: 700;
+}
+
+.account-security-section-v2 {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.account-email-change-card,
+.account-session-card {
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.018);
+  border-radius: 16px;
+  padding: 20px;
+}
+
+.account-security-block-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 16px;
+}
+
+.account-security-block-heading strong {
+  display: block;
+  color: #f2eee6;
+  font-size: .98rem;
+  margin-bottom: 4px;
+}
+
+.account-security-block-heading p {
+  margin: 0;
+  color: var(--muted);
+  font-size: .84rem;
+  line-height: 1.55;
+}
+
+.account-email-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.account-email-change-card .account-form-actions {
+  margin-top: 2px;
+}
+
+.account-current-session {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 15px;
+  border-radius: 13px;
+  border: 1px solid rgba(214,169,79,.14);
+  background: rgba(214,169,79,.035);
+}
+
+.session-status-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #6fd08c;
+  box-shadow: 0 0 0 5px rgba(111,208,140,.08);
+}
+
+.account-current-session div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.account-current-session strong {
+  color: #f0ede7;
+  font-size: .9rem;
+}
+
+.account-current-session span {
+  color: var(--muted);
+  font-size: .76rem;
+}
+
+.account-current-session > b {
+  color: #a9d9b7;
+  font-size: .72rem;
+  font-weight: 700;
+  border: 1px solid rgba(111,208,140,.18);
+  background: rgba(111,208,140,.06);
+  border-radius: 999px;
+  padding: 5px 9px;
+}
+
+@media (max-width: 980px) {
+  .account-settings-backdrop {
+    padding: 16px !important;
+  }
+
+  .account-settings-panel.account-settings-panel-v2 {
+    width: calc(100vw - 32px) !important;
+    height: calc(100dvh - 32px) !important;
+    grid-template-columns: 220px minmax(0, 1fr) !important;
+  }
+
+  .account-settings-panel-v2 .account-settings-header,
+  .account-settings-panel-v2 .account-section-body {
+    padding-left: 24px !important;
+    padding-right: 24px !important;
+  }
+}
+
+@media (max-width: 720px) {
+  .account-settings-backdrop {
+    padding: 0 !important;
+  }
+
+  .account-settings-panel.account-settings-panel-v2 {
+    width: 100vw !important;
+    height: 100dvh !important;
+    border-radius: 0 !important;
+    grid-template-columns: 1fr !important;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .account-settings-panel-v2 .account-settings-sidebar {
+    padding: 14px !important;
+    border-right: 0 !important;
+    border-bottom: 1px solid rgba(255,255,255,.07);
+  }
+
+  .account-settings-panel-v2 .account-sidebar-user,
+  .account-settings-panel-v2 .account-signout-form {
+    display: none;
+  }
+
+  .account-settings-panel-v2 .account-settings-sidebar nav {
+    display: flex;
+    overflow-x: auto;
+    gap: 8px;
+  }
+
+  .account-settings-panel-v2 .account-settings-sidebar nav button {
+    min-width: max-content;
+  }
+
+  .account-email-grid {
+    grid-template-columns: 1fr;
+  }
+}
