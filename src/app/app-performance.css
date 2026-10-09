@@ -6,7 +6,7 @@
 }
 
 .app-page-host {
-  transition: opacity .14s ease, transform .14s ease;
+  transition: opacity .16s ease, transform .16s cubic-bezier(.4,0,.2,1);
 }
 
 .app-page-host .app-shell {
@@ -15,12 +15,11 @@
   background: transparent;
 }
 
-/* Durante a migração, páginas antigas ainda podem renderizar o próprio header. O layout compartilhado é o único visível. */
+/* Durante a migração, páginas antigas ainda podem renderizar o próprio header. O layout compartilhado é a única versão visível. */
 .app-page-host .app-header {
   display: none;
 }
 
-/* O header autenticado fica persistente e evita blur contínuo, que é mais caro em composição. */
 .app-header-persistent {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
@@ -31,61 +30,78 @@
   color: var(--gold-light);
 }
 
-/* Feedback imediato no clique de navegação. */
-body.app-route-pending .app-page-host {
-  opacity: .48;
-  transform: translateY(4px);
-  pointer-events: none;
-}
-
-.app-navigation-progress {
-  position: fixed;
-  z-index: 3000;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
+/* Saída curta da tela atual antes da troca de rota. */
+body.app-route-leaving .app-page-host {
   opacity: 0;
+  transform: translateY(-6px) scale(.997);
   pointer-events: none;
-  overflow: hidden;
-  background: rgba(214,169,79,.07);
-  transition: opacity .12s ease;
 }
 
-.app-navigation-progress i {
-  display: block;
-  width: 100%;
-  height: 100%;
-  transform: scaleX(.06);
-  transform-origin: left center;
-  background: linear-gradient(90deg, #9d7429, var(--gold-light), #f8dda1);
-  box-shadow: 0 0 16px rgba(240,207,135,.42);
-}
-
-.app-navigation-progress.is-active {
-  opacity: 1;
-}
-
-.app-navigation-progress.is-active i {
-  animation: appNavigationProgress 1.25s cubic-bezier(.15,.72,.26,1) both;
-}
-
-@keyframes appNavigationProgress {
-  0% { transform: scaleX(.06); }
-  45% { transform: scaleX(.56); }
-  78% { transform: scaleX(.78); }
-  100% { transform: scaleX(.9); }
-}
-
-/* Entrada do conteúdo novo após a rota resolver. */
+/* Entrada da nova tela: próxima da linguagem visual usada em login/cadastro. */
 .app-route-transition {
-  animation: appRouteIn .28s cubic-bezier(.2,.75,.25,1) both;
-  transform-origin: top center;
+  animation: appPageIn .44s cubic-bezier(.18,.78,.22,1) both;
 }
 
-@keyframes appRouteIn {
-  from { opacity: 0; transform: translateY(9px); }
-  to { opacity: 1; transform: translateY(0); }
+@keyframes appPageIn {
+  from { opacity: 0; transform: translateY(12px) scale(.997); }
+  72% { opacity: 1; }
+  to { opacity: 1; transform: none; }
+}
+
+.app-route-transition .app-content > * {
+  opacity: 0;
+  animation: appSectionIn .42s cubic-bezier(.18,.78,.22,1) both;
+}
+
+.app-route-transition .app-content > *:nth-child(1) { animation-delay: .05s; }
+.app-route-transition .app-content > *:nth-child(2) { animation-delay: .09s; }
+.app-route-transition .app-content > *:nth-child(3) { animation-delay: .13s; }
+.app-route-transition .app-content > *:nth-child(4) { animation-delay: .17s; }
+.app-route-transition .app-content > *:nth-child(5) { animation-delay: .21s; }
+.app-route-transition .app-content > *:nth-child(n+6) { animation-delay: .24s; }
+
+@keyframes appSectionIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Cards entram em sequência dentro das principais grades. */
+.app-route-transition .metric-grid > *,
+.app-route-transition .quick-context-grid > *,
+.app-route-transition .registering-launch-grid > *,
+.app-route-transition .catalog-preview-grid > *,
+.app-route-transition .analytics-grid > *,
+.app-route-transition .map-place-grid > * {
+  opacity: 0;
+  animation: appCardIn .4s cubic-bezier(.18,.78,.22,1) both;
+}
+
+.app-route-transition .metric-grid > *:nth-child(1),
+.app-route-transition .quick-context-grid > *:nth-child(1),
+.app-route-transition .registering-launch-grid > *:nth-child(1),
+.app-route-transition .catalog-preview-grid > *:nth-child(1),
+.app-route-transition .analytics-grid > *:nth-child(1),
+.app-route-transition .map-place-grid > *:nth-child(1) { animation-delay: .14s; }
+
+.app-route-transition .metric-grid > *:nth-child(2),
+.app-route-transition .quick-context-grid > *:nth-child(2),
+.app-route-transition .registering-launch-grid > *:nth-child(2),
+.app-route-transition .catalog-preview-grid > *:nth-child(2),
+.app-route-transition .analytics-grid > *:nth-child(2),
+.app-route-transition .map-place-grid > *:nth-child(2) { animation-delay: .19s; }
+
+.app-route-transition .metric-grid > *:nth-child(3),
+.app-route-transition .quick-context-grid > *:nth-child(3),
+.app-route-transition .map-place-grid > *:nth-child(3) { animation-delay: .24s; }
+
+.app-route-transition .metric-grid > *:nth-child(4),
+.app-route-transition .map-place-grid > *:nth-child(4) { animation-delay: .29s; }
+
+.app-route-transition .map-place-grid > *:nth-child(n+5) { animation-delay: .32s; }
+
+@keyframes appCardIn {
+  from { opacity: 0; transform: translateY(8px) scale(.992); }
+  to { opacity: 1; transform: none; }
 }
 
 /* Skeletons: resposta visual enquanto Server Components terminam de carregar. */
@@ -156,19 +172,38 @@ body.app-route-pending .app-page-host {
   border-radius: var(--radius);
 }
 
-/* Modal: nenhuma filtragem de tela inteira e menos camadas compostas. */
+/* Modal renderizado por portal diretamente no body: sempre ocupa a viewport inteira. */
 .registration-modal-backdrop {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 5000 !important;
+  display: grid !important;
+  place-items: center !important;
+  padding: clamp(18px, 3vh, 32px) !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
-  background: rgba(0,0,0,.86) !important;
-  animation-duration: .12s !important;
+  background:
+    radial-gradient(circle at 50% 34%, rgba(214,169,79,.035), transparent 34%),
+    rgba(3,3,4,.82) !important;
+  animation: modalBackdropIn .16s ease both !important;
+}
+
+@keyframes modalBackdropIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .registration-modal {
-  box-shadow: 0 20px 52px rgba(0,0,0,.5) !important;
-  animation-duration: .16s !important;
+  max-height: calc(100dvh - 36px) !important;
+  margin: 0 !important;
+  box-shadow: 0 24px 64px rgba(0,0,0,.54) !important;
+  animation: modalPanelIn .2s cubic-bezier(.18,.78,.22,1) both !important;
   will-change: auto !important;
-  transform: none;
+}
+
+@keyframes modalPanelIn {
+  from { opacity: 0; transform: translateY(10px) scale(.992); }
+  to { opacity: 1; transform: none; }
 }
 
 .registration-modal-body {
@@ -187,14 +222,13 @@ body.app-route-pending .app-page-host {
   transform: none !important;
 }
 
-/* Ao abrir o modal, pausamos efeitos visuais do fundo que não agregam naquele momento. */
-body.registration-modal-open .app-header-persistent {
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
+body.registration-modal-open .app-header-persistent,
+body.registration-modal-open .app-page-host {
+  pointer-events: none;
 }
 
-body.registration-modal-open .app-route-transition {
-  animation-play-state: paused !important;
+body.registration-modal-open .registration-modal-backdrop {
+  pointer-events: auto;
 }
 
 @media (max-width: 980px) {
@@ -207,13 +241,26 @@ body.registration-modal-open .app-route-transition {
   .app-skeleton-grid { grid-template-columns: 1fr; }
   .app-skeleton-heading { align-items: stretch; flex-direction: column; }
   .app-skeleton-heading > div { width: 100%; }
+  .registration-modal-backdrop { padding: 10px !important; }
+  .registration-modal { max-height: calc(100dvh - 20px) !important; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .app-route-transition,
+  .app-route-transition .app-content > *,
+  .app-route-transition .metric-grid > *,
+  .app-route-transition .quick-context-grid > *,
+  .app-route-transition .registering-launch-grid > *,
+  .app-route-transition .catalog-preview-grid > *,
+  .app-route-transition .analytics-grid > *,
+  .app-route-transition .map-place-grid > *,
   .skeleton::after,
-  .app-navigation-progress.is-active i {
+  .registration-modal-backdrop,
+  .registration-modal {
     animation-duration: .01ms !important;
+    animation-delay: 0ms !important;
     animation-iteration-count: 1 !important;
   }
+
+  .app-page-host { transition-duration: .01ms !important; }
 }
