@@ -236,6 +236,7 @@ export function ReceiptImporter({ products, establishments }: { products: Produc
   const router = useRouter()
   const uploadRef = useRef<HTMLInputElement | null>(null)
   const cameraRef = useRef<HTMLInputElement | null>(null)
+  const filesRef = useRef<ImportFile[]>([])
   const [open, setOpen] = useState(false)
   const [stage, setStage] = useState<ImportStage>('source')
   const [files, setFiles] = useState<ImportFile[]>([])
@@ -265,9 +266,13 @@ export function ReceiptImporter({ products, establishments }: { products: Produc
     }
   }, [open, confirmOpen, isPending])
 
-  useEffect(() => () => {
-    files.forEach((entry) => { if (entry.previewUrl) URL.revokeObjectURL(entry.previewUrl) })
+  useEffect(() => {
+    filesRef.current = files
   }, [files])
+
+  useEffect(() => () => {
+    filesRef.current.forEach((entry) => { if (entry.previewUrl) URL.revokeObjectURL(entry.previewUrl) })
+  }, [])
 
   const establishmentOptions = useMemo<SearchableOption[]>(() => [
     { value: NEW_VALUE, label: '+ Criar estabelecimento a partir da nota', meta: 'Será criado somente ao confirmar a compra', searchText: 'novo criar estabelecimento' },
@@ -295,7 +300,8 @@ export function ReceiptImporter({ products, establishments }: { products: Produc
   const newProductsCount = draft?.items.filter((item) => item.productId === NEW_VALUE).length ?? 0
 
   function resetState() {
-    files.forEach((entry) => { if (entry.previewUrl) URL.revokeObjectURL(entry.previewUrl) })
+    filesRef.current.forEach((entry) => { if (entry.previewUrl) URL.revokeObjectURL(entry.previewUrl) })
+    filesRef.current = []
     setFiles([])
     setStage('source')
     setProgress(0)
@@ -313,25 +319,33 @@ export function ReceiptImporter({ products, establishments }: { products: Produc
     window.setTimeout(resetState, 180)
   }
 
-  function addFiles(list: FileList | null) {
-    if (!list?.length) return
+  function addFiles(selectedFiles: File[] | FileList | null) {
+    const selected = selectedFiles ? Array.from(selectedFiles) : []
+    if (!selected.length) return
+
     setError('')
-    const currentNames = new Set(files.map((entry) => `${entry.file.name}:${entry.file.size}:${entry.file.lastModified}`))
+    const current = filesRef.current
+    const currentNames = new Set(current.map((entry) => `${entry.file.name}:${entry.file.size}:${entry.file.lastModified}`))
     const next: ImportFile[] = []
-    for (const file of Array.from(list)) {
-      if (files.length + next.length >= 10) break
+    let rejectionMessage = ''
+
+    for (const file of selected) {
+      if (current.length + next.length >= 10) break
       const identity = `${file.name}:${file.size}:${file.lastModified}`
       if (currentNames.has(identity)) continue
       if (file.size > 15 * 1024 * 1024) {
-        setError('Cada arquivo pode ter no máximo 15 MB.')
+        rejectionMessage = 'Cada arquivo pode ter no máximo 15 MB.'
         continue
       }
-      const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
-      const isImage = file.type.startsWith('image/')
+
+      const lowerName = file.name.toLowerCase()
+      const isPdf = file.type === 'application/pdf' || lowerName.endsWith('.pdf')
+      const isImage = file.type.startsWith('image/') || /\.(jpe?g|png|webp)$/i.test(lowerName)
       if (!isPdf && !isImage) {
-        setError('Use imagens JPG, PNG, WebP ou documentos PDF.')
+        rejectionMessage = 'Use imagens JPG, PNG, WebP ou documentos PDF.'
         continue
       }
+
       next.push({
         key: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
         file,
@@ -339,22 +353,42 @@ export function ReceiptImporter({ products, establishments }: { products: Produc
       })
       currentNames.add(identity)
     }
-    setFiles((current) => [...current, ...next])
-    if (next.length) setStage('files')
+
+    if (!next.length) {
+      if (rejectionMessage) setError(rejectionMessage)
+      return
+    }
+
+    const merged = [...current, ...next]
+    filesRef.current = merged
+    setFiles(merged)
+    setStage('files')
+    if (rejectionMessage) setError(rejectionMessage)
+  }
+
+  function handleFileSelection(event: React.ChangeEvent<HTMLInputElement>) {
+    const selected = event.currentTarget.files ? Array.from(event.currentTarget.files) : []
+    event.currentTarget.value = ''
+    addFiles(selected)
   }
 
   function removeFile(key: string) {
-    setFiles((current) => {
-      const target = current.find((entry) => entry.key === key)
-      if (target?.previewUrl) URL.revokeObjectURL(target.previewUrl)
-      const next = current.filter((entry) => entry.key !== key)
-      if (!next.length) setStage('source')
-      return next
-    })
+    const current = filesRef.current
+    const target = current.find((entry) => entry.key === key)
+    if (target?.previewUrl) URL.revokeObjectURL(target.previewUrl)
+    const next = current.filter((entry) => entry.key !== key)
+    filesRef.current = next
+    setFiles(next)
+    if (!next.length) setStage('source')
   }
 
   async function processFiles() {
-    if (!files.length) return
+    const filesToProcess = filesRef.current
+    if (!filesToProcess.length) {
+      setError('Adicione pelo menos uma foto ou PDF antes de iniciar a leitura.')
+      setStage('source')
+      return
+    }
     setStage('processing')
     setError('')
     setProgress(0)
@@ -379,16 +413,16 @@ export function ReceiptImporter({ products, establishments }: { products: Produc
 
     try {
       const parts: ParsedReceipt[] = []
-      for (let index = 0; index < files.length; index++) {
-        const entry = files[index]
-        const baseProgress = (index / files.length) * 90
+      for (let index = 0; index < filesToProcess.length; index++) {
+        const entry = filesToProcess[index]
+        const baseProgress = (index / filesToProcess.length) * 90
         setProgress(Math.round(baseProgress))
         setProgressText(`Lendo ${index + 1} de ${files.length}: ${entry.file.name}`)
         let text = ''
         const isPdf = entry.file.type === 'application/pdf' || entry.file.name.toLowerCase().endsWith('.pdf')
         if (isPdf) {
           text = await extractPdfText(entry.file, (pageProgress, detail) => {
-            setProgress(Math.round(baseProgress + pageProgress * (90 / files.length)))
+            setProgress(Math.round(baseProgress + pageProgress * (90 / filesToProcess.length)))
             setProgressText(detail)
           }, getWorker)
         } else {
@@ -584,7 +618,7 @@ export function ReceiptImporter({ products, establishments }: { products: Produc
                   </article>
                 ))}
               </div>
-              <div className="receipt-files-actions"><button className="ghost-button" type="button" onClick={() => cameraRef.current?.click()} disabled={files.length >= 10}>Abrir câmera</button><button className="button button-primary" type="button" onClick={processFiles}>Ler comprovantes →</button></div>
+              <div className="receipt-files-actions"><button className="ghost-button" type="button" onClick={() => cameraRef.current?.click()} disabled={files.length >= 10}>Abrir câmera</button><button className="button button-primary" type="button" onClick={processFiles} disabled={!files.length}>Ler comprovantes →</button></div>
             </div>
           ) : null}
 
@@ -654,8 +688,8 @@ export function ReceiptImporter({ products, establishments }: { products: Produc
           ) : null}
         </div>
 
-        <input ref={uploadRef} className="receipt-hidden-input" type="file" accept="image/jpeg,image/png,image/webp,application/pdf,.pdf" multiple onChange={(event) => { addFiles(event.target.files); event.currentTarget.value = '' }} />
-        <input ref={cameraRef} className="receipt-hidden-input" type="file" accept="image/*" capture="environment" onChange={(event) => { addFiles(event.target.files); event.currentTarget.value = '' }} />
+        <input ref={uploadRef} className="receipt-hidden-input" type="file" accept="image/jpeg,image/png,image/webp,application/pdf,.jpg,.jpeg,.png,.webp,.pdf" multiple onChange={handleFileSelection} />
+        <input ref={cameraRef} className="receipt-hidden-input" type="file" accept="image/*" capture="environment" onChange={handleFileSelection} />
 
         {confirmOpen && draft ? <div className="receipt-confirm-overlay"><div className="receipt-confirm-card"><span className="page-kicker">CONFIRME O REGISTRO</span><h3>Registrar esta compra?</h3><div className="receipt-confirm-summary"><span><small>Estabelecimento</small><b>{draft.establishmentId === NEW_VALUE ? draft.newEstablishmentName : establishments.find((item) => item.id === draft.establishmentId)?.name}</b></span><span><small>Itens</small><b>{draft.items.length}</b></span><span><small>Total</small><b>{formatBRL(calculatedTotalCents)}</b></span><span><small>Novos produtos</small><b>{newProductsCount}</b></span></div>{Math.abs(differenceCents) > 2 && draft.totalCents ? <p className="receipt-confirm-warning">O total calculado ainda difere da nota em {formatBRL(Math.abs(differenceCents))}. Você pode registrar mesmo assim se já conferiu os valores.</p> : null}<p>Neste momento os novos cadastros e a compra serão gravados. A operação é feita de forma transacional.</p><div className="receipt-confirm-actions"><button className="ghost-button" type="button" onClick={() => setConfirmOpen(false)} disabled={isPending}>Voltar e revisar</button><button className="button button-primary" type="button" onClick={confirmRegistration} disabled={isPending}>{isPending ? 'Registrando…' : 'Confirmar e registrar'}</button></div></div></div> : null}
       </section>
