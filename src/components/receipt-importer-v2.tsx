@@ -34,8 +34,8 @@ type ReviewItem = ParsedReceiptItem & { productId: string }
 type ReviewDraft = Omit<ParsedReceipt, 'items'> & {
   fingerprint: string
   establishmentId: string
-  newEstablishmentName: string
-  newEstablishmentType: string
+  isNewEstablishment: boolean | null
+  declaredItemCount: number | null
   items: ReviewItem[]
 }
 
@@ -69,6 +69,22 @@ function dateInputToIso(value: string) {
   if (!value) return new Date().toISOString()
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString()
+}
+
+function detectDeclaredItemCount(text: string) {
+  const compact = text.replace(/\s+/g, ' ')
+  const patterns = [
+    /QTD\.?\s*TOTAL\s*DE\s*ITENS\s*[:.]?\s*0*(\d{1,4})/i,
+    /QTD\.?\s*TOTAL\s*ITENS\s*[:.]?\s*0*(\d{1,4})/i,
+    /TOTAL\s*DE\s*ITENS\s*[:.]?\s*0*(\d{1,4})/i,
+  ]
+  for (const pattern of patterns) {
+    const match = compact.match(pattern)
+    if (!match) continue
+    const value = Number(match[1])
+    if (Number.isFinite(value) && value > 0) return value
+  }
+  return null
 }
 
 function productLabel(product: ProductOption) {
@@ -232,10 +248,12 @@ export function ReceiptImporterV2({ products, establishments }: { products: Prod
   const [isPending, startTransition] = useTransition()
   const [success, setSuccess] = useState<{ purchaseId: string | null; createdProducts: number; itemCount: number } | null>(null)
 
-  const establishmentOptions = useMemo<SearchableOption[]>(() => [
-    { value: NEW_VALUE, label: '+ Criar estabelecimento a partir da nota', meta: 'Será criado somente ao confirmar a compra', searchText: 'novo criar estabelecimento' },
-    ...establishments.map((item) => ({ value: item.id, label: item.name, meta: [item.neighborhood, item.city].filter(Boolean).join(' · ') || undefined, searchText: `${item.name} ${item.neighborhood ?? ''} ${item.city ?? ''}` })),
-  ], [establishments])
+  const establishmentOptions = useMemo<SearchableOption[]>(() => establishments.map((item) => ({
+    value: item.id,
+    label: item.name,
+    meta: [item.neighborhood, item.city].filter(Boolean).join(' · ') || undefined,
+    searchText: `${item.name} ${item.neighborhood ?? ''} ${item.city ?? ''}`,
+  })), [establishments])
 
   const productOptions = useMemo<SearchableOption[]>(() => [
     { value: NEW_VALUE, label: '+ Cadastrar como novo produto', meta: 'Criado somente ao registrar', searchText: 'novo cadastrar produto' },
@@ -251,8 +269,9 @@ export function ReceiptImporterV2({ products, establishments }: { products: Prod
     if (!draft || draft.items.length === 0) return 'weak'
     const tolerance = draft.totalCents ? Math.max(5, Math.round(draft.totalCents * .03)) : 0
     const totalMatches = !draft.totalCents || Math.abs(differenceCents) <= tolerance
+    const countMatches = !draft.declaredItemCount || draft.declaredItemCount === draft.items.length
     const lowConfidence = draft.items.filter((item) => item.confidence === 'low').length
-    if (draft.items.length >= 2 && totalMatches && lowConfidence <= Math.ceil(draft.items.length * .25)) return 'good'
+    if (totalMatches && countMatches && lowConfidence <= Math.ceil(draft.items.length * .25)) return 'good'
     return 'partial'
   }, [draft, differenceCents])
 
@@ -392,13 +411,13 @@ export function ReceiptImporterV2({ products, establishments }: { products: Prod
       setProgress(94); setProgressText('Conferindo itens repetidos e procurando seu catálogo…')
       const parsed = mergeReceiptParts(parts)
       const fingerprint = await buildFingerprint(parsed)
-      const matchedEstablishment = bestEstablishment(parsed, establishments)
       const review: ReviewDraft = {
         ...parsed,
+        purchasedAt: '',
         fingerprint,
-        establishmentId: matchedEstablishment || NEW_VALUE,
-        newEstablishmentName: parsed.merchantName || '',
-        newEstablishmentType: parsed.sourceKind === 'delivery' ? 'restaurant' : 'market',
+        establishmentId: '',
+        isNewEstablishment: null,
+        declaredItemCount: detectDeclaredItemCount(texts.join('\n')),
         items: parsed.items.map((item) => ({ ...item, productId: bestProduct(item, products) })),
       }
       setDraft(review)
@@ -420,7 +439,10 @@ export function ReceiptImporterV2({ products, establishments }: { products: Prod
   function requestRegistration() {
     if (!draft) return
     if (!draft.items.length) return setError('Adicione pelo menos um item antes de registrar.')
-    if (draft.establishmentId === NEW_VALUE && !draft.newEstablishmentName.trim()) return setError('Informe o nome do estabelecimento.')
+    if (draft.isNewEstablishment === null) return setError('Confirme se o local é novo ou já está cadastrado.')
+    if (draft.isNewEstablishment) return setError('Cadastre o novo estabelecimento antes de continuar com esta importação.')
+    if (!draft.establishmentId) return setError('Escolha o estabelecimento onde a compra foi realizada.')
+    if (!draft.purchasedAt) return setError('Informe manualmente a data e o horário da compra.')
     for (const item of draft.items) {
       if (item.productId === NEW_VALUE && !item.name.trim()) return setError('Preencha o nome de todos os produtos novos.')
       if (item.quantity <= 0) return setError('Revise as quantidades dos itens.')
@@ -434,9 +456,8 @@ export function ReceiptImporterV2({ products, establishments }: { products: Prod
     setConfirmOpen(false)
     const payload: ImportedPurchasePayload = {
       fingerprint: draft.fingerprint,
-      establishment_id: draft.establishmentId === NEW_VALUE ? null : draft.establishmentId,
-      new_establishment: draft.establishmentId === NEW_VALUE ? { name: draft.newEstablishmentName.trim(), type: draft.newEstablishmentType } : undefined,
-      purchased_at: dateInputToIso(localDateTimeInput(draft.purchasedAt) || localDateTimeInput(new Date().toISOString())),
+      establishment_id: draft.establishmentId,
+      purchased_at: draft.purchasedAt,
       payment_method: draft.paymentMethod,
       notes: 'Compra registrada por Importação inteligente do ComInfla.',
       source_kind: draft.sourceKind,
@@ -449,7 +470,7 @@ export function ReceiptImporterV2({ products, establishments }: { products: Prod
       file_count: files.length,
       metadata: { imported: true, reading_quality: quality },
       extraction_metadata: { warnings_count: draft.warnings.length, reading_quality: quality },
-      items: draft.items.map((item) => ({ product_id: item.productId === NEW_VALUE ? null : item.productId, name: item.name.trim(), presentation: item.presentation, unit: item.unit, barcode: item.barcode, quantity: item.quantity, unit_price_cents: item.unitPriceCents, discount_cents: item.discountCents, is_promotion: item.discountCents > 0, notes: item.notes || null })),
+      items: draft.items.map((item) => ({ product_id: item.productId === NEW_VALUE ? null : item.productId, name: item.name.trim(), presentation: item.presentation, unit: item.unit, barcode: null, quantity: item.quantity, unit_price_cents: item.unitPriceCents, discount_cents: item.discountCents, is_promotion: item.discountCents > 0, notes: item.notes || null })),
     }
     startTransition(async () => {
       const result = await registerImportedPurchase(payload)
@@ -485,28 +506,38 @@ export function ReceiptImporterV2({ products, establishments }: { products: Prod
             {duplicatePurchaseId ? <div className="receipt-duplicate-warning"><strong>Possível duplicidade</strong><p>Este comprovante já foi usado em outra importação.</p></div> : null}
 
             <section className={`receipt-quality-card ${quality}`}>
-              <div className="receipt-quality-head"><span className="receipt-quality-dot"/><div><span className="page-kicker">QUALIDADE DA LEITURA</span><h3>{qualityText.title}</h3><p>{qualityText.text}</p></div><strong>{qualityText.label}</strong></div>
+              <div className="receipt-quality-head"><span className="receipt-quality-dot"/><div><span className="page-kicker">RESUMO DA LEITURA</span><h3>{quality === 'good' ? 'A leitura está consistente' : quality === 'partial' ? 'Encontramos dados, mas há diferenças para revisar' : 'A leitura precisa de revisão'}</h3><p>Compare o que a nota informa com o que o ComInfla conseguiu montar.</p></div><strong>{qualityText.label}</strong></div>
               <div className="receipt-quality-grid">
-                <span className={draft.merchantName ? 'ok' : 'warn'}><small>Estabelecimento</small><b>{draft.merchantName ? 'Identificado' : 'Revisar'}</b></span>
-                <span className={draft.purchasedAt ? 'ok' : 'warn'}><small>Data e horário</small><b>{draft.purchasedAt ? 'Identificados' : 'Revisar'}</b></span>
-                <span className={draft.items.length ? (quality === 'good' ? 'ok' : 'warn') : 'bad'}><small>Itens</small><b>{draft.items.length ? `${draft.items.length} encontrados` : 'Não identificados'}</b></span>
-                <span className={draft.totalCents ? 'ok' : 'warn'}><small>Total</small><b>{draft.totalCents ? formatBRL(draft.totalCents) : 'Não identificado'}</b></span>
+                <span className={draft.declaredItemCount ? 'ok' : 'warn'}><small>Itens na nota</small><b>{draft.declaredItemCount ?? 'Não identificado'}</b></span>
+                <span className={draft.declaredItemCount === draft.items.length ? 'ok' : 'warn'}><small>Itens encontrados</small><b>{draft.items.length}</b></span>
+                <span className={draft.totalCents ? 'ok' : 'warn'}><small>Total da nota</small><b>{draft.totalCents ? formatBRL(draft.totalCents) : 'Não identificado'}</b></span>
+                <span className={!draft.totalCents || Math.abs(differenceCents) <= Math.max(5, Math.round(draft.totalCents * .03)) ? 'ok' : 'warn'}><small>Valor encontrado</small><b>{formatBRL(calculatedTotalCents)}</b></span>
               </div>
+            </section>
+
+            <section className="receipt-location-choice">
+              <div className="receipt-location-choice-head"><span className="page-kicker">ESTABELECIMENTO</span><h3>Este é um local novo?</h3><p>O ComInfla não cria estabelecimentos automaticamente a partir da nota. Confirme como deseja continuar.</p></div>
+              <div className="receipt-location-choice-actions">
+                <button className={`receipt-location-choice-button ${draft.isNewEstablishment === true ? 'active' : ''}`} type="button" onClick={() => updateDraft({ isNewEstablishment: true, establishmentId: '' })}><strong>Sim, é um local novo</strong><span>Cadastre primeiro na aba Cadastrando.</span></button>
+                <button className={`receipt-location-choice-button ${draft.isNewEstablishment === false ? 'active' : ''}`} type="button" onClick={() => updateDraft({ isNewEstablishment: false })}><strong>Não, já está cadastrado</strong><span>Escolha um dos seus estabelecimentos.</span></button>
+              </div>
+              {draft.isNewEstablishment === true ? <div className="receipt-location-new"><p>Vamos abrir o cadastro de estabelecimento já no formulário correto. Depois, volte para Comprando e faça a importação novamente.</p><button className="button button-primary" type="button" onClick={() => window.location.assign('/app/cadastrando?open=establishment')}>Cadastrar estabelecimento →</button></div> : null}
+              {draft.isNewEstablishment === false ? <div className="field receipt-location-existing"><span>Estabelecimento *</span><SearchableSelect value={draft.establishmentId} onChange={(value) => updateDraft({ establishmentId: value })} options={establishmentOptions} placeholder="Escolha um estabelecimento" searchPlaceholder="Buscar estabelecimento…" emptyMessage="Nenhum estabelecimento cadastrado." ariaLabel="Estabelecimento"/></div> : null}
             </section>
 
             {draft.warnings.length ? <div className="receipt-review-warnings">{draft.warnings.map((warning) => <span key={warning}>! {warning}</span>)}</div> : null}
 
-            <section className="receipt-review-card receipt-purchase-data"><div className="receipt-card-title"><div><span className="page-kicker">DADOS DA COMPRA</span><h3>{sourceLabel(draft.sourceKind)}</h3></div>{draft.merchantCnpj ? <small>CNPJ {draft.merchantCnpj}</small> : null}</div><div className="receipt-review-main-grid"><div className="field receipt-establishment-field"><span>Estabelecimento</span><SearchableSelect value={draft.establishmentId} onChange={(value) => updateDraft({establishmentId:value})} options={establishmentOptions} placeholder="Escolha o estabelecimento" searchPlaceholder="Buscar estabelecimento…" emptyMessage="Nenhum estabelecimento encontrado." ariaLabel="Estabelecimento"/></div><label className="field"><span>Data e horário</span><input type="datetime-local" value={localDateTimeInput(draft.purchasedAt) || localDateTimeInput(new Date().toISOString())} onChange={(e)=>updateDraft({purchasedAt:dateInputToIso(e.target.value)})}/></label><label className="field"><span>Pagamento</span><select value={draft.paymentMethod} onChange={(e)=>updateDraft({paymentMethod:e.target.value})}><option value="">Não identificado</option><option value="debit_card">Cartão de débito</option><option value="credit_card">Cartão de crédito</option><option value="pix">Pix</option><option value="cash">Dinheiro</option><option value="benefit">VA / VR</option><option value="other">Outro</option></select></label></div>{draft.establishmentId === NEW_VALUE ? <div className="receipt-new-establishment"><label className="field"><span>Nome do novo estabelecimento</span><input value={draft.newEstablishmentName} onChange={(e)=>updateDraft({newEstablishmentName:e.target.value})}/></label><label className="field"><span>Tipo</span><select value={draft.newEstablishmentType} onChange={(e)=>updateDraft({newEstablishmentType:e.target.value})}><option value="market">Mercado / supermercado</option><option value="restaurant">Restaurante / delivery</option><option value="pharmacy">Farmácia</option><option value="other">Outro</option></select></label></div> : null}</section>
+            <section className="receipt-review-card receipt-purchase-data"><div className="receipt-card-title"><div><span className="page-kicker">DADOS DA COMPRA</span><h3>{sourceLabel(draft.sourceKind)}</h3></div></div><div className="receipt-review-main-grid"><label className="field"><span>Data e horário *</span><input type="datetime-local" required value={localDateTimeInput(draft.purchasedAt)} onChange={(e)=>updateDraft({purchasedAt:e.target.value ? dateInputToIso(e.target.value) : ''})}/><small className="receipt-required-note">Preencha manualmente para confirmar a data correta da compra.</small></label><label className="field"><span>Pagamento</span><select value={draft.paymentMethod} onChange={(e)=>updateDraft({paymentMethod:e.target.value})}><option value="">Não identificado</option><option value="debit_card">Cartão de débito</option><option value="credit_card">Cartão de crédito</option><option value="pix">Pix</option><option value="cash">Dinheiro</option><option value="benefit">VA / VR</option><option value="other">Outro</option></select></label></div></section>
 
             <section className="receipt-review-card"><div className="receipt-stage-heading"><div><span className="page-kicker">ITENS IDENTIFICADOS</span><h3>{draft.items.length === 0 ? 'Nenhum item identificado' : `${draft.items.length} ${draft.items.length === 1 ? 'item para revisar' : 'itens para revisar'}`}</h3></div><button className="ghost-button" type="button" onClick={()=>updateDraft({items:[...draft.items,makeBlankItem()]})}>+ Adicionar item</button></div>
-              {draft.items.length === 0 ? <div className="receipt-no-items"><div className="receipt-no-items-icon">?</div><div><strong>O ComInfla leu a nota, mas não conseguiu separar os produtos.</strong><p>Isso pode acontecer por reflexo, dobra no papel, fonte muito pequena ou espaços perdidos pelo OCR.</p><div className="receipt-no-items-actions"><button className="button button-primary" type="button" onClick={()=>processFiles(true)}>Tentar extrair itens novamente</button><button className="ghost-button" type="button" onClick={()=>updateDraft({items:[makeBlankItem()]})}>Adicionar manualmente</button><button className="ghost-button" type="button" onClick={()=>setShowRawText((v)=>!v)}>{showRawText ? 'Ocultar texto lido' : 'Ver texto lido da nota'}</button></div></div></div> : <div className="receipt-items-review">{draft.items.map((item,index)=><article className="receipt-review-item" key={item.key}><div className="receipt-item-top"><span className="receipt-item-index">{String(index+1).padStart(2,'0')}</span><span className={`receipt-confidence ${item.confidence}`}>{confidenceLabel(item.confidence)}</span><button type="button" onClick={()=>removeItem(item.key)}>×</button></div><div className="receipt-item-product-row"><div className="field"><span>Produto no seu catálogo</span><SearchableSelect value={item.productId} onChange={(value)=>updateItem(item.key,{productId:value})} options={productOptions} placeholder="Vincular produto" searchPlaceholder="Buscar produto…" emptyMessage="Nenhum produto encontrado." ariaLabel={`Produto ${index+1}`}/></div><label className="field"><span>{item.productId===NEW_VALUE?'Nome do novo produto':'Nome lido na nota'}</span><input value={item.name} onChange={(e)=>updateItem(item.key,{name:e.target.value})}/></label></div>{item.productId===NEW_VALUE ? <div className="receipt-new-product-meta"><label className="field"><span>Apresentação</span><input value={item.presentation??''} onChange={(e)=>updateItem(item.key,{presentation:e.target.value||null})} placeholder="Ex.: 350 ml, 1 kg"/></label><label className="field"><span>Unidade</span><select value={item.unit} onChange={(e)=>updateItem(item.key,{unit:e.target.value as ReviewItem['unit']})}><option value="unit">Unidade</option><option value="kg">kg</option><option value="g">g</option><option value="l">L</option><option value="ml">ml</option></select></label>{item.barcode ? <label className="field"><span>Código de barras</span><input value={item.barcode} onChange={(e)=>updateItem(item.key,{barcode:e.target.value.replace(/\D/g,'')||null})}/></label>:null}</div>:null}<div className="receipt-item-values"><label className="field"><span>Quantidade</span><input inputMode="decimal" value={String(item.quantity).replace('.',',')} onChange={(e)=>updateItem(item.key,{quantity:Number(e.target.value.replace(',','.'))||0})}/></label><label className="field"><span>Preço unit.</span><div className="money-input"><b>R$</b><input inputMode="decimal" value={centsToInput(item.unitPriceCents)} onChange={(e)=>updateItem(item.key,{unitPriceCents:inputToCents(e.target.value)})}/></div></label><label className="field"><span>Desconto do item</span><div className="money-input"><b>R$</b><input inputMode="decimal" value={item.discountCents?centsToInput(item.discountCents):''} placeholder="0,00" onChange={(e)=>updateItem(item.key,{discountCents:inputToCents(e.target.value)})}/></div></label><div className="receipt-item-total"><span>Total</span><strong>{formatBRL(Math.max(0,Math.round(item.quantity*item.unitPriceCents)-item.discountCents))}</strong></div></div></article>)}</div>}
+              {draft.items.length === 0 ? <div className="receipt-no-items"><div className="receipt-no-items-icon">?</div><div><strong>O ComInfla leu a nota, mas não conseguiu separar os produtos.</strong><p>Isso pode acontecer por reflexo, dobra no papel, fonte muito pequena ou espaços perdidos pelo OCR.</p><div className="receipt-no-items-actions"><button className="button button-primary" type="button" onClick={()=>processFiles(true)}>Tentar extrair itens novamente</button><button className="ghost-button" type="button" onClick={()=>updateDraft({items:[makeBlankItem()]})}>Adicionar manualmente</button><button className="ghost-button" type="button" onClick={()=>setShowRawText((v)=>!v)}>{showRawText ? 'Ocultar texto lido' : 'Ver texto lido da nota'}</button></div></div></div> : <div className="receipt-items-review">{draft.items.map((item,index)=><article className="receipt-review-item" key={item.key}><div className="receipt-item-top"><span className="receipt-item-index">{String(index+1).padStart(2,'0')}</span><span className={`receipt-confidence ${item.confidence}`}>{confidenceLabel(item.confidence)}</span><button type="button" onClick={()=>removeItem(item.key)}>×</button></div><div className="receipt-item-product-row"><div className="field"><span>Produto no seu catálogo</span><SearchableSelect value={item.productId} onChange={(value)=>updateItem(item.key,{productId:value})} options={productOptions} placeholder="Vincular produto" searchPlaceholder="Buscar produto…" emptyMessage="Nenhum produto encontrado." ariaLabel={`Produto ${index+1}`}/></div><label className="field"><span>{item.productId===NEW_VALUE?'Nome do novo produto':'Nome lido na nota'}</span><input value={item.name} onChange={(e)=>updateItem(item.key,{name:e.target.value})}/></label></div>{item.productId===NEW_VALUE ? <div className="receipt-new-product-meta"><label className="field"><span>Apresentação</span><input value={item.presentation??''} onChange={(e)=>updateItem(item.key,{presentation:e.target.value||null})} placeholder="Ex.: 350 ml, 1 kg"/></label><label className="field"><span>Unidade</span><select value={item.unit} onChange={(e)=>updateItem(item.key,{unit:e.target.value as ReviewItem['unit']})}><option value="unit">Unidade</option><option value="kg">kg</option><option value="g">g</option><option value="l">L</option><option value="ml">ml</option></select></label></div>:null}<div className="receipt-item-values"><label className="field"><span>Quantidade</span><input inputMode="decimal" value={String(item.quantity).replace('.',',')} onChange={(e)=>updateItem(item.key,{quantity:Number(e.target.value.replace(',','.'))||0})}/></label><label className="field"><span>Preço unit.</span><div className="money-input"><b>R$</b><input inputMode="decimal" value={centsToInput(item.unitPriceCents)} onChange={(e)=>updateItem(item.key,{unitPriceCents:inputToCents(e.target.value)})}/></div></label><label className="field"><span>Desconto do item</span><div className="money-input"><b>R$</b><input inputMode="decimal" value={item.discountCents?centsToInput(item.discountCents):''} placeholder="0,00" onChange={(e)=>updateItem(item.key,{discountCents:inputToCents(e.target.value)})}/></div></label><div className="receipt-item-total"><span>Total</span><strong>{formatBRL(Math.max(0,Math.round(item.quantity*item.unitPriceCents)-item.discountCents))}</strong></div></div></article>)}</div>}
               {showRawText && rawText ? <div className="receipt-raw-text"><div><strong>Texto reconhecido pelo leitor</strong><button type="button" onClick={()=>setShowRawText(false)}>Fechar</button></div><pre>{rawText}</pre></div> : null}
               {draft.items.length > 0 ? <div className="receipt-retry-line"><button className="text-link" type="button" onClick={()=>processFiles(true)}>A leitura parece errada? Tentar novamente com contraste reforçado</button><button className="text-link" type="button" onClick={()=>setShowRawText((v)=>!v)}>Ver texto lido</button></div> : null}
             </section>
 
             <section className="receipt-review-card receipt-totals-card"><div><span className="page-kicker">CONFERÊNCIA</span><h3>Os valores batem?</h3><p>Taxas e descontos ficam separados dos produtos.</p></div><div className="receipt-total-edit-grid"><label className="field"><span>Taxas adicionais</span><div className="money-input"><b>R$</b><input value={draft.extraFeesCents?centsToInput(draft.extraFeesCents):''} placeholder="0,00" onChange={(e)=>updateDraft({extraFeesCents:inputToCents(e.target.value)})}/></div></label><label className="field"><span>Desconto do pedido</span><div className="money-input"><b>R$</b><input value={draft.orderDiscountCents?centsToInput(draft.orderDiscountCents):''} placeholder="0,00" onChange={(e)=>updateDraft({orderDiscountCents:inputToCents(e.target.value)})}/></div></label><label className="field"><span>Total impresso na nota</span><div className="money-input"><b>R$</b><input value={draft.totalCents?centsToInput(draft.totalCents):''} placeholder="0,00" onChange={(e)=>updateDraft({totalCents:inputToCents(e.target.value)})}/></div></label></div><div className="receipt-total-summary"><span><small>Itens</small><b>{formatBRL(itemNetCents)}</b></span><span><small>+ Taxas</small><b>{formatBRL(draft.extraFeesCents)}</b></span><span><small>− Desconto</small><b>{formatBRL(draft.orderDiscountCents)}</b></span><span className="strong"><small>Total calculado</small><b>{formatBRL(calculatedTotalCents)}</b></span></div>{draft.totalCents ? <div className={`receipt-total-check ${Math.abs(differenceCents)<=2?'ok':'warning'}`}><strong>{Math.abs(differenceCents)<=2?'✓ Valores conferem':'! Há uma diferença para revisar'}</strong><span>{Math.abs(differenceCents)<=2?`O total calculado coincide com ${formatBRL(draft.totalCents)}.`:`Diferença de ${formatBRL(Math.abs(differenceCents))}.`}</span></div>:null}</section>
 
-            <div className="receipt-review-footer"><div><strong>{newProductsCount} {newProductsCount===1?'produto novo':'produtos novos'}</strong><span>{files.length} {files.length===1?'arquivo processado':'arquivos processados'} · {qualityText.label}</span></div><button className="button button-primary" type="button" onClick={requestRegistration} disabled={!draft.items.length || Boolean(duplicatePurchaseId) || isPending}>Registrar compra</button></div>
+            <div className="receipt-review-footer"><div><strong>{newProductsCount} {newProductsCount===1?'produto novo':'produtos novos'}</strong><span>{files.length} {files.length===1?'arquivo processado':'arquivos processados'} · {qualityText.label}</span></div><button className="button button-primary" type="button" onClick={requestRegistration} disabled={!draft.items.length || Boolean(duplicatePurchaseId) || isPending || draft.isNewEstablishment !== false || !draft.establishmentId || !draft.purchasedAt}>Registrar compra</button></div>
           </div> : null}
 
           {stage === 'success' && success ? <div className="receipt-success-stage"><div className="receipt-success-icon">✓</div><span className="page-kicker">IMPORTAÇÃO CONCLUÍDA</span><h3>Compra registrada</h3><p>{success.itemCount} {success.itemCount===1?'item foi salvo':'itens foram salvos'}.</p><button className="button button-primary" type="button" onClick={()=>success.purchaseId?window.location.assign(`/app/comprando?purchase=${success.purchaseId}`):closeImporter()}>Ver compra e insights →</button></div> : null}
@@ -514,7 +545,7 @@ export function ReceiptImporterV2({ products, establishments }: { products: Prod
 
         <input ref={uploadRef} className="receipt-hidden-input" type="file" accept="image/jpeg,image/png,image/webp,application/pdf,.jpg,.jpeg,.png,.webp,.pdf" multiple onChange={handleFileSelection}/>
         <input ref={cameraRef} className="receipt-hidden-input" type="file" accept="image/*" capture="environment" onChange={handleFileSelection}/>
-        {confirmOpen && draft ? <div className="receipt-confirm-overlay"><div className="receipt-confirm-card"><span className="page-kicker">CONFIRME O REGISTRO</span><h3>Registrar esta compra?</h3><div className="receipt-confirm-summary"><span><small>Estabelecimento</small><b>{draft.establishmentId===NEW_VALUE?draft.newEstablishmentName:establishments.find((item)=>item.id===draft.establishmentId)?.name}</b></span><span><small>Itens</small><b>{draft.items.length}</b></span><span><small>Total</small><b>{formatBRL(calculatedTotalCents)}</b></span><span><small>Qualidade</small><b>{qualityText.label}</b></span></div><p>Nada foi cadastrado até agora. Ao confirmar, a compra e os novos cadastros serão gravados juntos.</p><div className="receipt-confirm-actions"><button className="ghost-button" type="button" onClick={()=>setConfirmOpen(false)}>Voltar e revisar</button><button className="button button-primary" type="button" onClick={confirmRegistration} disabled={isPending}>{isPending?'Registrando…':'Confirmar e registrar'}</button></div></div></div>:null}
+        {confirmOpen && draft ? <div className="receipt-confirm-overlay"><div className="receipt-confirm-card"><span className="page-kicker">CONFIRME O REGISTRO</span><h3>Registrar esta compra?</h3><div className="receipt-confirm-summary"><span><small>Estabelecimento</small><b>{establishments.find((item)=>item.id===draft.establishmentId)?.name || 'Não selecionado'}</b></span><span><small>Itens</small><b>{draft.items.length}</b></span><span><small>Total</small><b>{formatBRL(calculatedTotalCents)}</b></span><span><small>Qualidade</small><b>{qualityText.label}</b></span></div><p>Nada foi cadastrado até agora. Ao confirmar, a compra e os novos cadastros serão gravados juntos.</p><div className="receipt-confirm-actions"><button className="ghost-button" type="button" onClick={()=>setConfirmOpen(false)}>Voltar e revisar</button><button className="button button-primary" type="button" onClick={confirmRegistration} disabled={isPending}>{isPending?'Registrando…':'Confirmar e registrar'}</button></div></div></div>:null}
       </section>
     </div>, document.body) : null
 
