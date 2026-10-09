@@ -1,0 +1,25 @@
+name: Receipt review refinement run
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/receipt-review-refine-run.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: python .github/scripts/receipt_review_refine.py
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components/receipt-importer-v2.tsx
+          git commit -m "feat: refine receipt review and establishment flow"
+          git push origin HEAD:main
