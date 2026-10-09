@@ -1,0 +1,55 @@
+.receipt-quality-card {
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 18px;
+  padding: 18px;
+  background: rgba(255,255,255,.018);
+  display: grid;
+  gap: 16px;
+}
+.receipt-quality-card.good { border-color: rgba(112,220,162,.2); background: linear-gradient(135deg, rgba(112,220,162,.055), rgba(255,255,255,.012)); }
+.receipt-quality-card.partial { border-color: rgba(240,207,135,.24); background: linear-gradient(135deg, rgba(240,207,135,.055), rgba(255,255,255,.012)); }
+.receipt-quality-card.weak { border-color: rgba(255,118,118,.24); background: linear-gradient(135deg, rgba(255,118,118,.045), rgba(255,255,255,.012)); }
+.receipt-quality-head { display:flex; align-items:flex-start; gap:12px; }
+.receipt-quality-head > div { flex:1; }
+.receipt-quality-head h3 { margin:3px 0 4px; font-size:20px; }
+.receipt-quality-head p { margin:0; color:#999; line-height:1.45; }
+.receipt-quality-head > strong { font-size:11px; border:1px solid currentColor; border-radius:999px; padding:6px 9px; white-space:nowrap; }
+.receipt-quality-card.good .receipt-quality-head > strong { color:#75d9a4; }
+.receipt-quality-card.partial .receipt-quality-head > strong { color:#f0cf87; }
+.receipt-quality-card.weak .receipt-quality-head > strong { color:#ff8a8a; }
+.receipt-quality-dot { width:10px; height:10px; border-radius:50%; margin-top:7px; flex:0 0 auto; box-shadow:0 0 18px currentColor; }
+.good .receipt-quality-dot { color:#75d9a4; background:#75d9a4; }
+.partial .receipt-quality-dot { color:#e1ae4c; background:#e1ae4c; }
+.weak .receipt-quality-dot { color:#ff7c7c; background:#ff7c7c; }
+.receipt-quality-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); border:1px solid rgba(255,255,255,.08); border-radius:14px; overflow:hidden; }
+.receipt-quality-grid span { display:grid; gap:4px; padding:12px 13px; background:rgba(0,0,0,.16); border-right:1px solid rgba(255,255,255,.07); }
+.receipt-quality-grid span:last-child { border-right:0; }
+.receipt-quality-grid small { color:#777; text-transform:uppercase; letter-spacing:.06em; font-size:9px; }
+.receipt-quality-grid b { font-size:12px; }
+.receipt-quality-grid .ok b { color:#8eddb0; }
+.receipt-quality-grid .warn b { color:#f0cf87; }
+.receipt-quality-grid .bad b { color:#ff8c8c; }
+.receipt-no-items { display:flex; gap:16px; align-items:flex-start; padding:22px; border:1px dashed rgba(240,207,135,.22); border-radius:16px; background:rgba(240,207,135,.025); }
+.receipt-no-items-icon { width:46px; height:46px; border-radius:14px; display:grid; place-items:center; flex:0 0 auto; color:#f0cf87; border:1px solid rgba(240,207,135,.3); background:rgba(240,207,135,.07); font-size:22px; font-weight:800; }
+.receipt-no-items strong { display:block; margin-bottom:5px; }
+.receipt-no-items p { margin:0; color:#999; line-height:1.5; }
+.receipt-no-items-actions { display:flex; flex-wrap:wrap; gap:9px; margin-top:15px; }
+.receipt-raw-text { margin-top:14px; border:1px solid rgba(255,255,255,.09); border-radius:14px; overflow:hidden; background:#090909; }
+.receipt-raw-text > div { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:11px 13px; border-bottom:1px solid rgba(255,255,255,.07); }
+.receipt-raw-text button { background:none; border:0; color:#f0cf87; cursor:pointer; }
+.receipt-raw-text pre { margin:0; padding:14px; max-height:260px; overflow:auto; white-space:pre-wrap; color:#aaa; font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace; }
+.receipt-retry-line { display:flex; justify-content:flex-end; gap:16px; margin-top:10px; }
+.receipt-retry-line .text-link { background:none; border:0; cursor:pointer; font-size:11px; }
+
+@media (max-width: 760px) {
+  .receipt-quality-head { flex-wrap:wrap; }
+  .receipt-quality-head > strong { margin-left:22px; }
+  .receipt-quality-grid { grid-template-columns:1fr 1fr; }
+  .receipt-quality-grid span:nth-child(2) { border-right:0; }
+  .receipt-quality-grid span:nth-child(-n+2) { border-bottom:1px solid rgba(255,255,255,.07); }
+  .receipt-no-items { flex-direction:column; }
+  .receipt-no-items-actions { flex-direction:column; }
+  .receipt-no-items-actions .button,
+  .receipt-no-items-actions .ghost-button { width:100%; }
+  .receipt-retry-line { flex-direction:column; align-items:flex-start; }
+}
