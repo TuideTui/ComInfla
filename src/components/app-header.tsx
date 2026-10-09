@@ -43,6 +43,12 @@ export function AppHeader({ active: activeProp, firstName }: { active?: ActiveSe
   useEffect(() => {
     setPendingHref(null)
     document.body.classList.remove('app-route-leaving')
+    document.body.classList.add('app-route-arrived')
+
+    const arrivedTimer = window.setTimeout(() => {
+      document.body.classList.remove('app-route-arrived')
+    }, 650)
+
     if (navigationTimer.current) {
       window.clearTimeout(navigationTimer.current)
       navigationTimer.current = null
@@ -51,10 +57,12 @@ export function AppHeader({ active: activeProp, firstName }: { active?: ActiveSe
       window.clearTimeout(safetyTimer.current)
       safetyTimer.current = null
     }
+
+    return () => window.clearTimeout(arrivedTimer)
   }, [pathname])
 
   useEffect(() => () => {
-    document.body.classList.remove('app-route-leaving')
+    document.body.classList.remove('app-route-leaving', 'app-route-arrived')
     if (navigationTimer.current) window.clearTimeout(navigationTimer.current)
     if (safetyTimer.current) window.clearTimeout(safetyTimer.current)
   }, [])
@@ -73,11 +81,14 @@ export function AppHeader({ active: activeProp, firstName }: { active?: ActiveSe
 
     event.preventDefault()
     setPendingHref(href)
+    document.body.classList.remove('app-route-arrived')
     document.body.classList.add('app-route-leaving')
 
+    // A rota já foi prefetched. Este pequeno intervalo existe para a tela atual
+    // realmente concluir a animação de saída antes da troca visual.
     navigationTimer.current = window.setTimeout(() => {
       router.push(href)
-    }, 165)
+    }, 260)
 
     safetyTimer.current = window.setTimeout(() => {
       setPendingHref(null)
