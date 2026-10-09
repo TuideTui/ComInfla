@@ -1,0 +1,75 @@
+name: Receipt upload hotfix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/receipt-upload-hotfix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Patch receipt file selection
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('src/components/receipt-importer.tsx')
+          source = path.read_text(encoding='utf-8')
+
+          old = """  const uploadRef = useRef<HTMLInputElement | null>(null)\n  const cameraRef = useRef<HTMLInputElement | null>(null)\n  const [open, setOpen] = useState(false)"""
+          new = """  const uploadRef = useRef<HTMLInputElement | null>(null)\n  const cameraRef = useRef<HTMLInputElement | null>(null)\n  const filesRef = useRef<ImportFile[]>([])\n  const [open, setOpen] = useState(false)"""
+          assert old in source
+          source = source.replace(old, new, 1)
+
+          old = """  useEffect(() => () => {\n    files.forEach((entry) => { if (entry.previewUrl) URL.revokeObjectURL(entry.previewUrl) })\n  }, [files])"""
+          new = """  useEffect(() => {\n    filesRef.current = files\n  }, [files])\n\n  useEffect(() => () => {\n    filesRef.current.forEach((entry) => { if (entry.previewUrl) URL.revokeObjectURL(entry.previewUrl) })\n  }, [])"""
+          assert old in source
+          source = source.replace(old, new, 1)
+
+          old = """  function resetState() {\n    files.forEach((entry) => { if (entry.previewUrl) URL.revokeObjectURL(entry.previewUrl) })\n    setFiles([])"""
+          new = """  function resetState() {\n    filesRef.current.forEach((entry) => { if (entry.previewUrl) URL.revokeObjectURL(entry.previewUrl) })\n    filesRef.current = []\n    setFiles([])"""
+          assert old in source
+          source = source.replace(old, new, 1)
+
+          start = source.index('  function addFiles(list: FileList | null) {')
+          end = source.index('\n\n  function removeFile', start)
+          source = source[:start] + """  function addFiles(selectedFiles: File[] | FileList | null) {\n    const selected = selectedFiles ? Array.from(selectedFiles) : []\n    if (!selected.length) return\n\n    setError('')\n    const current = filesRef.current\n    const currentNames = new Set(current.map((entry) => `${entry.file.name}:${entry.file.size}:${entry.file.lastModified}`))\n    const next: ImportFile[] = []\n    let rejectionMessage = ''\n\n    for (const file of selected) {\n      if (current.length + next.length >= 10) break\n      const identity = `${file.name}:${file.size}:${file.lastModified}`\n      if (currentNames.has(identity)) continue\n      if (file.size > 15 * 1024 * 1024) {\n        rejectionMessage = 'Cada arquivo pode ter no máximo 15 MB.'\n        continue\n      }\n\n      const lowerName = file.name.toLowerCase()\n      const isPdf = file.type === 'application/pdf' || lowerName.endsWith('.pdf')\n      const isImage = file.type.startsWith('image/') || /\\.(jpe?g|png|webp)$/i.test(lowerName)\n      if (!isPdf && !isImage) {\n        rejectionMessage = 'Use imagens JPG, PNG, WebP ou documentos PDF.'\n        continue\n      }\n\n      next.push({\n        key: `${Date.now()}-${Math.random().toString(36).slice(2)}`,\n        file,\n        previewUrl: isImage ? URL.createObjectURL(file) : null,\n      })\n      currentNames.add(identity)\n    }\n\n    if (!next.length) {\n      if (rejectionMessage) setError(rejectionMessage)\n      return\n    }\n\n    const merged = [...current, ...next]\n    filesRef.current = merged\n    setFiles(merged)\n    setStage('files')\n    if (rejectionMessage) setError(rejectionMessage)\n  }\n\n  function handleFileSelection(event: React.ChangeEvent<HTMLInputElement>) {\n    const selected = event.currentTarget.files ? Array.from(event.currentTarget.files) : []\n    event.currentTarget.value = ''\n    addFiles(selected)\n  }""" + source[end:]
+
+          old = """  function removeFile(key: string) {\n    setFiles((current) => {\n      const target = current.find((entry) => entry.key === key)\n      if (target?.previewUrl) URL.revokeObjectURL(target.previewUrl)\n      const next = current.filter((entry) => entry.key !== key)\n      if (!next.length) setStage('source')\n      return next\n    })\n  }"""
+          new = """  function removeFile(key: string) {\n    const current = filesRef.current\n    const target = current.find((entry) => entry.key === key)\n    if (target?.previewUrl) URL.revokeObjectURL(target.previewUrl)\n    const next = current.filter((entry) => entry.key !== key)\n    filesRef.current = next\n    setFiles(next)\n    if (!next.length) setStage('source')\n  }"""
+          assert old in source
+          source = source.replace(old, new, 1)
+
+          old = """  async function processFiles() {\n    if (!files.length) return\n    setStage('processing')"""
+          new = """  async function processFiles() {\n    const filesToProcess = filesRef.current\n    if (!filesToProcess.length) {\n      setError('Adicione pelo menos uma foto ou PDF antes de iniciar a leitura.')\n      setStage('source')\n      return\n    }\n    setStage('processing')"""
+          assert old in source
+          source = source.replace(old, new, 1)
+          source = source.replace('for (let index = 0; index < files.length; index++) {\n        const entry = files[index]\n        const baseProgress = (index / files.length) * 90', 'for (let index = 0; index < filesToProcess.length; index++) {\n        const entry = filesToProcess[index]\n        const baseProgress = (index / filesToProcess.length) * 90', 1)
+          source = source.replace('(90 / files.length)', '(90 / filesToProcess.length)', 1)
+
+          old = """<button className=\"button button-primary\" type=\"button\" onClick={processFiles}>Ler comprovantes →</button>"""
+          new = """<button className=\"button button-primary\" type=\"button\" onClick={processFiles} disabled={!files.length}>Ler comprovantes →</button>"""
+          assert old in source
+          source = source.replace(old, new, 1)
+
+          old = """        <input ref={uploadRef} className=\"receipt-hidden-input\" type=\"file\" accept=\"image/jpeg,image/png,image/webp,application/pdf,.pdf\" multiple onChange={(event) => { addFiles(event.target.files); event.currentTarget.value = '' }} />\n        <input ref={cameraRef} className=\"receipt-hidden-input\" type=\"file\" accept=\"image/*\" capture=\"environment\" onChange={(event) => { addFiles(event.target.files); event.currentTarget.value = '' }} />"""
+          new = """        <input ref={uploadRef} className=\"receipt-hidden-input\" type=\"file\" accept=\"image/jpeg,image/png,image/webp,application/pdf,.jpg,.jpeg,.png,.webp,.pdf\" multiple onChange={handleFileSelection} />\n        <input ref={cameraRef} className=\"receipt-hidden-input\" type=\"file\" accept=\"image/*\" capture=\"environment\" onChange={handleFileSelection} />"""
+          assert old in source
+          source = source.replace(old, new, 1)
+
+          path.write_text(source, encoding='utf-8')
+      - name: Commit fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components/receipt-importer.tsx
+          git commit -m "fix: persist selected receipt files"
+          git push origin HEAD:main
