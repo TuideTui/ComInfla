@@ -137,7 +137,7 @@ function extractIndexedBlocks(rawText: string) {
       insideItems = true
       continue
     }
-    if (insideItems && /(qtd\s*total.*itens|total\s*de\s*itens|valor\s*total)/.test(normalized)) {
+    if (insideItems && /(qtd\s*total|total\s*de\s*itens|valor\s*total|cartao\s*(?:de)?bito|consulte\s+pela)/.test(normalized)) {
       flush()
       break
     }
@@ -161,6 +161,47 @@ function extractIndexedBlocks(rawText: string) {
   const unique = new Map<number, IndexedBlock>()
   for (const block of blocks) if (!unique.has(block.index)) unique.set(block.index, block)
   return [...unique.values()].sort((a, b) => a.index - b.index)
+}
+
+function extractVisualBlocks(rawText: string) {
+  const lines = normalizeReceiptText(rawText).split('\n').map((line) => line.replace(/\s+/g, ' ').trim()).filter(Boolean)
+  const blocks: IndexedBlock[] = []
+  let current: IndexedBlock | null = null
+  let insideItems = false
+
+  const flush = () => {
+    if (!current) return
+    current.sourceLine = current.lines.join(' ')
+    blocks.push(current)
+    current = null
+  }
+
+  for (const line of lines) {
+    const normalized = normalizeForMatch(line)
+    if (/\b(descricao|descric[aã]o)\b/.test(normalized) && /(qtd|vl|total|codigo)/.test(normalized)) {
+      insideItems = true
+      continue
+    }
+    if (!insideItems) continue
+    if (/(qtd\s*total|valor\s*total|total\s*de\s*itens|cartao\s*(?:de)?bito|consulte\s+pela)/.test(normalized)) {
+      flush()
+      break
+    }
+
+    const continuation = /^\W*[A-Z]?\s*(?:\d+(?:[.,]\d{1,3})?\s*)?(?:UN|KG|G|L|LT|ML)\b/i.test(line)
+      || /^\W*\d+(?:[.,]\d{1,3})?\s*(?:UN|KG|G|L|LT|ML)\b/i.test(line)
+    const hasDescription = /[A-Za-zÀ-ÿ]{3,}/.test(line)
+    const hasProductShape = hasDescription && !continuation
+
+    if (hasProductShape) {
+      flush()
+      current = { index: blocks.length + 1, lines: [line], sourceLine: line }
+    } else if (current) {
+      current.lines.push(line)
+    }
+  }
+  flush()
+  return blocks
 }
 
 function parseIndexedBlock(block: IndexedBlock): SmartItem {
@@ -293,7 +334,9 @@ export function parseReceiptTextSmart(rawText: string) {
   const base = parseReceiptText(rawText)
   const fallback = tolerantItems(rawText)
   const indexedBlocks = extractIndexedBlocks(rawText)
-  const indexedItems = indexedBlocks.map(parseIndexedBlock)
+  const visualBlocks = base.sourceKind === 'nfce' ? extractVisualBlocks(rawText) : []
+  const receiptBlocks = visualBlocks.length > indexedBlocks.length ? visualBlocks : indexedBlocks
+  const indexedItems = receiptBlocks.map(parseIndexedBlock)
 
   const candidates = [...(base.items as any[]), ...fallback, ...indexedItems]
   const byIndex = new Map<number, any>()
@@ -320,7 +363,7 @@ export function parseReceiptTextSmart(rawText: string) {
   const incomplete = indexedResult.filter((item) => item.unitPriceCents <= 0 || item.totalCents <= 0 || /^Item \d+ da nota$/i.test(item.name)).length
   const recovered = Math.max(0, items.length - base.items.length)
 
-  if (indexedBlocks.length) warnings.unshift(`${indexedBlocks.length} linha(s) numerada(s) da nota foram preservadas para conferência.`)
+  if (receiptBlocks.length) warnings.unshift(`${receiptBlocks.length} linha(s) de produto da nota foram preservadas para conferência.`)
   if (recovered) warnings.unshift(`${recovered} item(ns) adicionais foram recuperados automaticamente e precisam de revisão.`)
   if (incomplete) warnings.unshift(`${incomplete} item(ns) não foram interpretados por completo e foram mantidos para preenchimento manual.`)
 

@@ -90,6 +90,7 @@ function detectDeclaredItemCount(text: string) {
     : 0
 
   const patterns = [
+    /QTD\W{0,4}TOTAL(?:\s+DE)?[^0-9]{0,20}([0O]{0,2}\d{1,3})\b/i,
     /QTD\W{0,3}TOTAL(?:\s+DE)?\s+ITENS?\D{0,12}([0O]*\d{1,3})\b/i,
     /TOTAL(?:\s+DE)?\s+ITENS?\D{0,12}([0O]*\d{1,3})\b/i,
     /QTD\W{0,3}TOTAL(?:\s+DE)?\s+(?:I|1|L)?TENS?\D{0,12}([0O]*\d{1,3})\b/i,
@@ -99,8 +100,9 @@ function detectDeclaredItemCount(text: string) {
     if (!match) continue
     const value = Number(match[1].replace(/O/g, '0'))
     if (!Number.isFinite(value) || value <= 0 || value > 999) continue
-    if (sequentialMax >= 3 && (value > sequentialMax * 2 || value - sequentialMax >= 10)) return sequentialMax
-    if (sequentialMax >= 3 && value < sequentialMax) return sequentialMax
+    const observedMax = unique.length ? unique[unique.length - 1] : 0
+    if (observedMax >= 3 && value < observedMax) return observedMax
+    if (sequentialMax >= 3 && (value > Math.max(observedMax, sequentialMax) * 2 || value - Math.max(observedMax, sequentialMax) >= 10)) return Math.max(observedMax, sequentialMax)
     return value
   }
 
@@ -246,7 +248,52 @@ function confidenceLabel(value: ParsedReceiptItem['confidence']) {
 
 function isReviewItemComplete(item: ReviewItem) {
   const hasUsefulName = item.name.trim().length >= 2 && !/^Item \d+ da nota$/i.test(item.name.trim())
-  return hasUsefulName && item.quantity > 0 && item.unitPriceCents > 0
+  if (!hasUsefulName || item.quantity <= 0 || item.unitPriceCents <= 0) return false
+  if (item.totalCents > 0) {
+    const calculated = Math.round(item.quantity * item.unitPriceCents)
+    const tolerance = Math.max(3, Math.round(item.totalCents * .01))
+    if (Math.abs(calculated - item.totalCents) > tolerance) return false
+  }
+  return true
+}
+
+function receiptItemIndex(item: ReviewItem) {
+  const match = item.sourceLine?.trim().match(/^0?(\d{1,2})\b/)
+  const value = match ? Number(match[1]) : 0
+  return value >= 1 && value <= 99 ? value : 0
+}
+
+function makeMissingReceiptItem(index: number): ReviewItem {
+  return {
+    ...makeBlankItem(),
+    key: `missing-${index}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    rawName: `Item ${String(index).padStart(2, '0')} da nota`,
+    name: `Item ${String(index).padStart(2, '0')} da nota`,
+    sourceLine: `${String(index).padStart(2, '0')} item não interpretado pelo leitor`,
+    notes: `A linha ${String(index).padStart(2, '0')} foi detectada na estrutura da nota, mas precisa ser preenchida manualmente.`,
+    confidence: 'low',
+  }
+}
+
+function ensureDeclaredItemSlots(items: ReviewItem[], declaredCount: number | null) {
+  if (!declaredCount || declaredCount < 1 || declaredCount > 60 || items.length >= declaredCount) return items
+  const indexed = new Map<number, ReviewItem>()
+  const unindexed: ReviewItem[] = []
+  for (const item of items) {
+    const index = receiptItemIndex(item)
+    if (index && !indexed.has(index)) indexed.set(index, item)
+    else unindexed.push(item)
+  }
+  if (indexed.size < 2) return items
+  let missingNeeded = declaredCount - items.length
+  const result: ReviewItem[] = []
+  for (let index = 1; index <= declaredCount; index++) {
+    const existing = indexed.get(index)
+    if (existing) result.push(existing)
+    else if (missingNeeded > 0) { result.push(makeMissingReceiptItem(index)); missingNeeded-- }
+  }
+  result.push(...unindexed)
+  return result
 }
 
 function qualityCopy(quality: ImportQuality) {
@@ -287,6 +334,10 @@ export function ReceiptImporterV2({ products, establishments }: { products: Prod
   ], [products])
 
   const itemNetCents = useMemo(() => draft?.items.reduce((sum, item) => sum + Math.max(0, Math.round(item.quantity * item.unitPriceCents) - item.discountCents), 0) ?? 0, [draft])
+  const identifiedValueCents = useMemo(() => draft?.items.reduce((sum, item) => {
+    if (!isReviewItemComplete(item)) return sum
+    return sum + Math.max(0, Math.round(item.quantity * item.unitPriceCents) - item.discountCents)
+  }, 0) ?? 0, [draft])
   const calculatedTotalCents = draft ? Math.max(0, itemNetCents + draft.extraFeesCents - draft.orderDiscountCents) : 0
   const differenceCents = draft?.totalCents ? calculatedTotalCents - draft.totalCents : 0
   const newProductsCount = draft?.items.filter((item) => item.productId === NEW_VALUE).length ?? 0
@@ -298,13 +349,13 @@ export function ReceiptImporterV2({ products, establishments }: { products: Prod
 
   const quality = useMemo<ImportQuality>(() => {
     if (!draft || draft.items.length === 0) return 'weak'
-    const tolerance = draft.totalCents ? Math.max(5, Math.round(draft.totalCents * .03)) : 0
-    const totalMatches = !draft.totalCents || Math.abs(differenceCents) <= tolerance
+    const tolerance = draft.totalCents ? 5 : 0
+    const totalMatches = !draft.totalCents || Math.abs(calculatedTotalCents - draft.totalCents) <= tolerance
     const countMatches = !draft.declaredItemCount || draft.declaredItemCount === structuredItemCount
     const lowConfidence = draft.items.filter((item) => item.confidence === 'low').length
     if (totalMatches && countMatches && incompleteItemCount === 0 && lowConfidence <= Math.ceil(draft.items.length * .25)) return 'good'
     return 'partial'
-  }, [draft, differenceCents, structuredItemCount, incompleteItemCount])
+  }, [draft, calculatedTotalCents, structuredItemCount, incompleteItemCount])
 
   useEffect(() => {
     if (!open) return
@@ -442,14 +493,17 @@ export function ReceiptImporterV2({ products, establishments }: { products: Prod
       setProgress(94); setProgressText('Conferindo itens repetidos e procurando seu catálogo…')
       const parsed = mergeReceiptParts(parts)
       const fingerprint = await buildFingerprint(parsed)
+      const declaredItemCount = detectDeclaredItemCount(texts.join('\n'))
+      const mappedItems = parsed.items.map((item) => ({ ...item, productId: bestProduct(item, products) }))
+      const reviewItems = ensureDeclaredItemSlots(mappedItems, declaredItemCount)
       const review: ReviewDraft = {
         ...parsed,
         purchasedAt: '',
         fingerprint,
         establishmentId: '',
         isNewEstablishment: null,
-        declaredItemCount: detectDeclaredItemCount(texts.join('\n')),
-        items: parsed.items.map((item) => ({ ...item, productId: bestProduct(item, products) })),
+        declaredItemCount: declaredItemCount ? Math.max(declaredItemCount, reviewItems.length) : (reviewItems.length || null),
+        items: reviewItems,
       }
       setDraft(review)
       const duplicate = await checkReceiptFingerprint(fingerprint)
@@ -464,7 +518,14 @@ export function ReceiptImporterV2({ products, establishments }: { products: Prod
   }
 
   function updateDraft(patch: Partial<ReviewDraft>) { setDraft((current) => current ? { ...current, ...patch } : current) }
-  function updateItem(key: string, patch: Partial<ReviewItem>) { setDraft((current) => current ? { ...current, items: current.items.map((item) => item.key === key ? { ...item, ...patch } : item) } : current) }
+  function updateItem(key: string, patch: Partial<ReviewItem>) {
+    setDraft((current) => current ? { ...current, items: current.items.map((item) => {
+      if (item.key !== key) return item
+      const next = { ...item, ...patch }
+      if ('quantity' in patch || 'unitPriceCents' in patch) next.totalCents = Math.max(0, Math.round(next.quantity * next.unitPriceCents))
+      return next
+    }) } : current)
+  }
   function removeItem(key: string) { setDraft((current) => current ? { ...current, items: current.items.filter((item) => item.key !== key) } : current) }
 
   function requestRegistration() {
@@ -545,9 +606,9 @@ export function ReceiptImporterV2({ products, establishments }: { products: Prod
                   <b>{draft.declaredItemCount ? `${structuredItemCount}/${draft.declaredItemCount} itens identificados` : `${structuredItemCount} ${structuredItemCount === 1 ? 'item identificado' : 'itens identificados'}`}</b>
                   <em>{draft.declaredItemCount ? (incompleteItemCount > 0 ? `${incompleteItemCount} ${incompleteItemCount === 1 ? 'linha da nota foi preservada e precisa' : 'linhas da nota foram preservadas e precisam'} de revisão.` : `A nota informa ${draft.declaredItemCount} itens no total.`) : 'A quantidade total da nota não pôde ser lida com segurança.'}</em>
                 </span>
-                <span className={!draft.totalCents || Math.abs(differenceCents) <= Math.max(5, Math.round(draft.totalCents * .03)) ? 'ok' : 'warn'}>
-                  <small>Valor encontrado</small>
-                  <b>{draft.totalCents ? `${formatBRL(calculatedTotalCents)} de ${formatBRL(draft.totalCents)}` : formatBRL(calculatedTotalCents)}</b>
+                <span className={!draft.totalCents || Math.abs(identifiedValueCents - draft.totalCents) <= 5 ? 'ok' : 'warn'}>
+                  <small>Valor identificado</small>
+                  <b>{draft.totalCents ? `${formatBRL(identifiedValueCents)} de ${formatBRL(draft.totalCents)}` : formatBRL(identifiedValueCents)}</b>
                   <em>{draft.totalCents ? `Total informado na nota: ${formatBRL(draft.totalCents)}.` : 'O total impresso na nota não pôde ser identificado.'}</em>
                 </span>
               </div>
