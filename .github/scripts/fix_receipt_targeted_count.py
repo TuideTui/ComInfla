@@ -60,6 +60,6 @@ function productLabel'''
 pattern = re.compile(r"function detectLikelyProductRowCount\(text: string\) \{.*?\nfunction productLabel", re.S)
 if not pattern.search(source):
     raise SystemExit('Bloco detectLikelyProductRowCount/resolveDeclaredItemCount não encontrado')
-source = pattern.sub(replacement, source, count=1)
+source = pattern.sub(lambda _match: replacement, source, count=1)
 
 path.write_text(source, encoding='utf-8')
