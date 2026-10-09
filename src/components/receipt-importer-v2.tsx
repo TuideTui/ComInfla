@@ -79,6 +79,16 @@ function detectDeclaredItemCount(text: string) {
     .toUpperCase()
   const lines = normalized.split(/\r?\n/).map((line) => line.replace(/\s+/g, ' ').trim()).filter(Boolean)
   const compact = lines.join(' ')
+
+  const indexes = lines.map((line) => {
+    const match = line.match(/^\s*0?(\d{1,2})\s+(?:(?:\d[\dO]{5,13})\s+)?[A-Z]/)
+    return match ? Number(match[1]) : 0
+  }).filter((value) => value > 0 && value <= 99)
+  const unique = [...new Set(indexes)].sort((a, b) => a - b)
+  const sequentialMax = unique.length >= 2 && unique[0] === 1
+    ? unique.reduce((max, value) => value === max + 1 ? value : max, 0)
+    : 0
+
   const patterns = [
     /QTD\W{0,3}TOTAL(?:\s+DE)?\s+ITENS?\D{0,12}([0O]*\d{1,3})\b/i,
     /TOTAL(?:\s+DE)?\s+ITENS?\D{0,12}([0O]*\d{1,3})\b/i,
@@ -88,19 +98,13 @@ function detectDeclaredItemCount(text: string) {
     const match = compact.match(pattern)
     if (!match) continue
     const value = Number(match[1].replace(/O/g, '0'))
-    if (Number.isFinite(value) && value > 0 && value <= 999) return value
+    if (!Number.isFinite(value) || value <= 0 || value > 999) continue
+    if (sequentialMax >= 3 && (value > sequentialMax * 2 || value - sequentialMax >= 10)) return sequentialMax
+    if (sequentialMax >= 3 && value < sequentialMax) return sequentialMax
+    return value
   }
 
-  const indexes = lines.map((line) => {
-    const match = line.match(/^\s*0?(\d{1,2})\s+(?:(?:\d[\dO]{5,13})\s+)?[A-Z]/)
-    return match ? Number(match[1]) : 0
-  }).filter((value) => value > 0 && value <= 99)
-  const unique = [...new Set(indexes)].sort((a, b) => a - b)
-  if (unique.length >= 2 && unique[0] === 1) {
-    const max = unique[unique.length - 1]
-    const sequentialHits = unique.filter((value, index) => index === 0 || value > unique[index - 1]).length
-    if (max >= 2 && sequentialHits >= Math.min(3, max)) return max
-  }
+  if (sequentialMax >= 2) return sequentialMax
   return null
 }
 
@@ -240,6 +244,11 @@ function confidenceLabel(value: ParsedReceiptItem['confidence']) {
   return 'Baixa confiança'
 }
 
+function isReviewItemComplete(item: ReviewItem) {
+  const hasUsefulName = item.name.trim().length >= 2 && !/^Item \d+ da nota$/i.test(item.name.trim())
+  return hasUsefulName && item.quantity > 0 && item.unitPriceCents > 0
+}
+
 function qualityCopy(quality: ImportQuality) {
   if (quality === 'good') return { label: 'Leitura boa', title: 'A maior parte da compra foi entendida', text: 'Confira os produtos e confirme antes de registrar.' }
   if (quality === 'partial') return { label: 'Leitura parcial', title: 'Encontramos dados, mas há pontos para revisar', text: 'Itens ou valores podem precisar de pequenos ajustes.' }
@@ -281,6 +290,9 @@ export function ReceiptImporterV2({ products, establishments }: { products: Prod
   const calculatedTotalCents = draft ? Math.max(0, itemNetCents + draft.extraFeesCents - draft.orderDiscountCents) : 0
   const differenceCents = draft?.totalCents ? calculatedTotalCents - draft.totalCents : 0
   const newProductsCount = draft?.items.filter((item) => item.productId === NEW_VALUE).length ?? 0
+  const structuredItemCount = draft?.items.filter(isReviewItemComplete).length ?? 0
+  const incompleteItemCount = Math.max(0, (draft?.items.length ?? 0) - structuredItemCount)
+  const itemsReady = Boolean(draft?.items.length && draft.items.every(isReviewItemComplete))
   const establishmentReady = Boolean(draft && draft.isNewEstablishment === false && draft.establishmentId)
   const purchaseDataReady = Boolean(establishmentReady && draft?.purchasedAt && draft?.paymentMethod)
 
@@ -288,11 +300,11 @@ export function ReceiptImporterV2({ products, establishments }: { products: Prod
     if (!draft || draft.items.length === 0) return 'weak'
     const tolerance = draft.totalCents ? Math.max(5, Math.round(draft.totalCents * .03)) : 0
     const totalMatches = !draft.totalCents || Math.abs(differenceCents) <= tolerance
-    const countMatches = !draft.declaredItemCount || draft.declaredItemCount === draft.items.length
+    const countMatches = !draft.declaredItemCount || draft.declaredItemCount === structuredItemCount
     const lowConfidence = draft.items.filter((item) => item.confidence === 'low').length
-    if (totalMatches && countMatches && lowConfidence <= Math.ceil(draft.items.length * .25)) return 'good'
+    if (totalMatches && countMatches && incompleteItemCount === 0 && lowConfidence <= Math.ceil(draft.items.length * .25)) return 'good'
     return 'partial'
-  }, [draft, differenceCents])
+  }, [draft, differenceCents, structuredItemCount, incompleteItemCount])
 
   useEffect(() => {
     if (!open) return
@@ -465,7 +477,7 @@ export function ReceiptImporterV2({ products, establishments }: { products: Prod
     if (!draft.paymentMethod) return setError('Informe a forma de pagamento da compra.')
     for (const item of draft.items) {
       if (item.productId === NEW_VALUE && !item.name.trim()) return setError('Preencha o nome de todos os produtos novos.')
-      if (item.quantity <= 0) return setError('Revise as quantidades dos itens.')
+      if (!isReviewItemComplete(item)) return setError('Revise os itens incompletos. Todos precisam de nome, quantidade e preço unitário antes do registro.')
     }
     if (duplicatePurchaseId) return setError('Este comprovante já parece ter sido registrado anteriormente.')
     setError(''); setConfirmOpen(true)
@@ -528,10 +540,10 @@ export function ReceiptImporterV2({ products, establishments }: { products: Prod
             <section className={`receipt-quality-card ${quality}`}>
               <div className="receipt-quality-head"><span className="receipt-quality-dot"/><div><span className="page-kicker">RESUMO DA LEITURA</span><h3>{quality === 'good' ? 'A leitura está consistente' : quality === 'partial' ? 'Encontramos dados, mas há diferenças para revisar' : 'A leitura precisa de revisão'}</h3><p>Compare o que a nota informa com o que o ComInfla conseguiu montar.</p></div><strong>{qualityText.label}</strong></div>
               <div className="receipt-quality-grid receipt-quality-grid-pairs">
-                <span className={draft.declaredItemCount === draft.items.length ? 'ok' : 'warn'}>
+                <span className={draft.declaredItemCount === structuredItemCount && incompleteItemCount === 0 ? 'ok' : 'warn'}>
                   <small>Itens encontrados</small>
-                  <b>{draft.declaredItemCount ? `${draft.items.length}/${draft.declaredItemCount} itens encontrados` : `${draft.items.length} ${draft.items.length === 1 ? 'item encontrado' : 'itens encontrados'}`}</b>
-                  <em>{draft.declaredItemCount ? `A nota informa ${draft.declaredItemCount} itens no total.` : 'A quantidade total da nota não pôde ser lida com segurança.'}</em>
+                  <b>{draft.declaredItemCount ? `${structuredItemCount}/${draft.declaredItemCount} itens identificados` : `${structuredItemCount} ${structuredItemCount === 1 ? 'item identificado' : 'itens identificados'}`}</b>
+                  <em>{draft.declaredItemCount ? (incompleteItemCount > 0 ? `${incompleteItemCount} ${incompleteItemCount === 1 ? 'linha da nota foi preservada e precisa' : 'linhas da nota foram preservadas e precisam'} de revisão.` : `A nota informa ${draft.declaredItemCount} itens no total.`) : 'A quantidade total da nota não pôde ser lida com segurança.'}</em>
                 </span>
                 <span className={!draft.totalCents || Math.abs(differenceCents) <= Math.max(5, Math.round(draft.totalCents * .03)) ? 'ok' : 'warn'}>
                   <small>Valor encontrado</small>
@@ -556,15 +568,15 @@ export function ReceiptImporterV2({ products, establishments }: { products: Prod
             {establishmentReady ? <section className="receipt-review-card receipt-purchase-data receipt-flow-unlocked"><div className="receipt-card-title"><div><span className="page-kicker">DADOS DA COMPRA</span><h3>{sourceLabel(draft.sourceKind)}</h3><p>Preencha os dois campos obrigatórios para liberar a revisão dos itens.</p></div><span className="receipt-flow-badge">ETAPA 2</span></div><div className="receipt-review-main-grid receipt-purchase-data-grid"><label className="field"><span>Data e horário *</span><input type="datetime-local" required value={localDateTimeInput(draft.purchasedAt)} onChange={(e)=>updateDraft({purchasedAt:e.target.value ? dateInputToIso(e.target.value) : ''})}/><small className="receipt-required-note">Confirme manualmente a data correta da compra.</small></label><label className="field"><span>Pagamento *</span><select required value={draft.paymentMethod} onChange={(e)=>updateDraft({paymentMethod:e.target.value})}><option value="">Selecione a forma de pagamento</option><option value="debit_card">Cartão de débito</option><option value="credit_card">Cartão de crédito</option><option value="pix">Pix</option><option value="cash">Dinheiro</option><option value="benefit">VA / VR</option><option value="other">Outro</option></select><small className="receipt-required-note">Informe como esta compra foi paga.</small></label></div></section> : <section className="receipt-flow-lock"><span className="receipt-flow-lock-icon">2</span><div><span className="page-kicker">PRÓXIMA ETAPA</span><h3>Dados da compra bloqueados</h3><p>Primeiro confirme acima se o estabelecimento já está cadastrado e selecione o local correto.</p></div></section>}
 
             {purchaseDataReady ? <>
-            <section className="receipt-review-card"><div className="receipt-stage-heading"><div><span className="page-kicker">ITENS IDENTIFICADOS</span><h3>{draft.items.length === 0 ? 'Nenhum item identificado' : `${draft.items.length} ${draft.items.length === 1 ? 'item para revisar' : 'itens para revisar'}`}</h3></div><button className="ghost-button" type="button" onClick={()=>updateDraft({items:[...draft.items,makeBlankItem()]})}>+ Adicionar item</button></div>
-              {draft.items.length === 0 ? <div className="receipt-no-items"><div className="receipt-no-items-icon">?</div><div><strong>O ComInfla leu a nota, mas não conseguiu separar os produtos.</strong><p>Isso pode acontecer por reflexo, dobra no papel, fonte muito pequena ou espaços perdidos pelo OCR.</p><div className="receipt-no-items-actions"><button className="button button-primary" type="button" onClick={()=>processFiles(true)}>Tentar extrair itens novamente</button><button className="ghost-button" type="button" onClick={()=>updateDraft({items:[makeBlankItem()]})}>Adicionar manualmente</button><button className="ghost-button" type="button" onClick={()=>setShowRawText((v)=>!v)}>{showRawText ? 'Ocultar texto lido' : 'Ver texto lido da nota'}</button></div></div></div> : <div className="receipt-items-review">{draft.items.map((item,index)=><article className="receipt-review-item" key={item.key}><div className="receipt-item-top"><span className="receipt-item-index">{String(index+1).padStart(2,'0')}</span><span className={`receipt-confidence ${item.confidence}`}>{confidenceLabel(item.confidence)}</span><button type="button" onClick={()=>removeItem(item.key)}>×</button></div><div className="receipt-item-product-row"><div className="field"><span>Produto no seu catálogo</span><SearchableSelect value={item.productId} onChange={(value)=>updateItem(item.key,{productId:value})} options={productOptions} placeholder="Vincular produto" searchPlaceholder="Buscar produto…" emptyMessage="Nenhum produto encontrado." ariaLabel={`Produto ${index+1}`}/></div><label className="field"><span>{item.productId===NEW_VALUE?'Nome do novo produto':'Nome lido na nota'}</span><input value={item.name} onChange={(e)=>updateItem(item.key,{name:e.target.value})}/></label></div>{item.productId===NEW_VALUE ? <div className="receipt-new-product-meta"><label className="field"><span>Apresentação</span><input value={item.presentation??''} onChange={(e)=>updateItem(item.key,{presentation:e.target.value||null})} placeholder="Ex.: 350 ml, 1 kg"/></label><label className="field"><span>Unidade</span><select value={item.unit} onChange={(e)=>updateItem(item.key,{unit:e.target.value as ReviewItem['unit']})}><option value="unit">Unidade</option><option value="kg">kg</option><option value="g">g</option><option value="l">L</option><option value="ml">ml</option></select></label></div>:null}<div className="receipt-item-values"><label className="field"><span>Quantidade</span><input inputMode="decimal" value={String(item.quantity).replace('.',',')} onChange={(e)=>updateItem(item.key,{quantity:Number(e.target.value.replace(',','.'))||0})}/></label><label className="field"><span>Preço unit.</span><div className="money-input"><b>R$</b><input inputMode="decimal" value={centsToInput(item.unitPriceCents)} onChange={(e)=>updateItem(item.key,{unitPriceCents:inputToCents(e.target.value)})}/></div></label><label className="field"><span>Desconto do item</span><div className="money-input"><b>R$</b><input inputMode="decimal" value={item.discountCents?centsToInput(item.discountCents):''} placeholder="0,00" onChange={(e)=>updateItem(item.key,{discountCents:inputToCents(e.target.value)})}/></div></label><div className="receipt-item-total"><span>Total</span><strong>{formatBRL(Math.max(0,Math.round(item.quantity*item.unitPriceCents)-item.discountCents))}</strong></div></div></article>)}</div>}
+            <section className="receipt-review-card"><div className="receipt-stage-heading"><div><span className="page-kicker">ITENS IDENTIFICADOS</span><h3>{draft.items.length === 0 ? 'Nenhum item identificado' : incompleteItemCount > 0 ? `${structuredItemCount} identificados · ${incompleteItemCount} para completar` : `${draft.items.length} ${draft.items.length === 1 ? 'item para revisar' : 'itens para revisar'}`}</h3></div><button className="ghost-button" type="button" onClick={()=>updateDraft({items:[...draft.items,makeBlankItem()]})}>+ Adicionar item</button></div>
+              {draft.items.length === 0 ? <div className="receipt-no-items"><div className="receipt-no-items-icon">?</div><div><strong>O ComInfla leu a nota, mas não conseguiu separar os produtos.</strong><p>Isso pode acontecer por reflexo, dobra no papel, fonte muito pequena ou espaços perdidos pelo OCR.</p><div className="receipt-no-items-actions"><button className="button button-primary" type="button" onClick={()=>processFiles(true)}>Tentar extrair itens novamente</button><button className="ghost-button" type="button" onClick={()=>updateDraft({items:[makeBlankItem()]})}>Adicionar manualmente</button><button className="ghost-button" type="button" onClick={()=>setShowRawText((v)=>!v)}>{showRawText ? 'Ocultar texto lido' : 'Ver texto lido da nota'}</button></div></div></div> : <div className="receipt-items-review">{draft.items.map((item,index)=><article className={`receipt-review-item ${isReviewItemComplete(item) ? '' : 'incomplete'}`} key={item.key}><div className="receipt-item-top"><span className="receipt-item-index">{String(index+1).padStart(2,'0')}</span><span className={`receipt-confidence ${item.confidence}`}>{confidenceLabel(item.confidence)}</span><button type="button" onClick={()=>removeItem(item.key)}>×</button></div><div className="receipt-item-product-row"><div className="field"><span>Produto no seu catálogo</span><SearchableSelect value={item.productId} onChange={(value)=>updateItem(item.key,{productId:value})} options={productOptions} placeholder="Vincular produto" searchPlaceholder="Buscar produto…" emptyMessage="Nenhum produto encontrado." ariaLabel={`Produto ${index+1}`}/></div><label className="field"><span>{item.productId===NEW_VALUE?'Nome do novo produto':'Nome lido na nota'}</span><input value={item.name} onChange={(e)=>updateItem(item.key,{name:e.target.value})}/></label></div>{item.productId===NEW_VALUE ? <div className="receipt-new-product-meta"><label className="field"><span>Apresentação</span><input value={item.presentation??''} onChange={(e)=>updateItem(item.key,{presentation:e.target.value||null})} placeholder="Ex.: 350 ml, 1 kg"/></label><label className="field"><span>Unidade</span><select value={item.unit} onChange={(e)=>updateItem(item.key,{unit:e.target.value as ReviewItem['unit']})}><option value="unit">Unidade</option><option value="kg">kg</option><option value="g">g</option><option value="l">L</option><option value="ml">ml</option></select></label></div>:null}<div className="receipt-item-values"><label className="field"><span>Quantidade</span><input inputMode="decimal" value={String(item.quantity).replace('.',',')} onChange={(e)=>updateItem(item.key,{quantity:Number(e.target.value.replace(',','.'))||0})}/></label><label className="field"><span>Preço unit.</span><div className="money-input"><b>R$</b><input inputMode="decimal" value={centsToInput(item.unitPriceCents)} onChange={(e)=>updateItem(item.key,{unitPriceCents:inputToCents(e.target.value)})}/></div></label><label className="field"><span>Desconto do item</span><div className="money-input"><b>R$</b><input inputMode="decimal" value={item.discountCents?centsToInput(item.discountCents):''} placeholder="0,00" onChange={(e)=>updateItem(item.key,{discountCents:inputToCents(e.target.value)})}/></div></label><div className="receipt-item-total"><span>Total</span><strong>{formatBRL(Math.max(0,Math.round(item.quantity*item.unitPriceCents)-item.discountCents))}</strong></div></div></article>)}</div>}
               {showRawText && rawText ? <div className="receipt-raw-text"><div><strong>Texto reconhecido pelo leitor</strong><button type="button" onClick={()=>setShowRawText(false)}>Fechar</button></div><pre>{rawText}</pre></div> : null}
               {draft.items.length > 0 ? <div className="receipt-retry-line"><button className="text-link" type="button" onClick={()=>processFiles(true)}>A leitura parece errada? Tentar novamente com contraste reforçado</button><button className="text-link" type="button" onClick={()=>setShowRawText((v)=>!v)}>Ver texto lido</button></div> : null}
             </section>
 
             <section className="receipt-review-card receipt-totals-card"><div><span className="page-kicker">CONFERÊNCIA</span><h3>Os valores batem?</h3><p>Taxas e descontos ficam separados dos produtos.</p></div><div className="receipt-total-edit-grid"><label className="field"><span>Taxas adicionais</span><div className="money-input"><b>R$</b><input value={draft.extraFeesCents?centsToInput(draft.extraFeesCents):''} placeholder="0,00" onChange={(e)=>updateDraft({extraFeesCents:inputToCents(e.target.value)})}/></div></label><label className="field"><span>Desconto do pedido</span><div className="money-input"><b>R$</b><input value={draft.orderDiscountCents?centsToInput(draft.orderDiscountCents):''} placeholder="0,00" onChange={(e)=>updateDraft({orderDiscountCents:inputToCents(e.target.value)})}/></div></label><label className="field"><span>Total impresso na nota</span><div className="money-input"><b>R$</b><input value={draft.totalCents?centsToInput(draft.totalCents):''} placeholder="0,00" onChange={(e)=>updateDraft({totalCents:inputToCents(e.target.value)})}/></div></label></div><div className="receipt-total-summary"><span><small>Itens</small><b>{formatBRL(itemNetCents)}</b></span><span><small>+ Taxas</small><b>{formatBRL(draft.extraFeesCents)}</b></span><span><small>− Desconto</small><b>{formatBRL(draft.orderDiscountCents)}</b></span><span className="strong"><small>Total calculado</small><b>{formatBRL(calculatedTotalCents)}</b></span></div>{draft.totalCents ? <div className={`receipt-total-check ${Math.abs(differenceCents)<=2?'ok':'warning'}`}><strong>{Math.abs(differenceCents)<=2?'✓ Valores conferem':'! Há uma diferença para revisar'}</strong><span>{Math.abs(differenceCents)<=2?`O total calculado coincide com ${formatBRL(draft.totalCents)}.`:`Diferença de ${formatBRL(Math.abs(differenceCents))}.`}</span></div>:null}</section>
 
-            <div className="receipt-review-footer"><div><strong>{newProductsCount} {newProductsCount===1?'produto novo':'produtos novos'}</strong><span>{files.length} {files.length===1?'arquivo processado':'arquivos processados'} · {qualityText.label}</span></div><button className="button button-primary" type="button" onClick={requestRegistration} disabled={!draft.items.length || Boolean(duplicatePurchaseId) || isPending || !purchaseDataReady}>Registrar compra</button></div>
+            <div className="receipt-review-footer"><div><strong>{newProductsCount} {newProductsCount===1?'produto novo':'produtos novos'}</strong><span>{files.length} {files.length===1?'arquivo processado':'arquivos processados'} · {qualityText.label}</span></div><button className="button button-primary" type="button" onClick={requestRegistration} disabled={!itemsReady || Boolean(duplicatePurchaseId) || isPending || !purchaseDataReady}>Registrar compra</button></div>
             </> : <section className="receipt-flow-lock receipt-flow-lock-final"><span className="receipt-flow-lock-icon">3</span><div><span className="page-kicker">ITENS E CONFERÊNCIA</span><h3>Complete os dados da compra para continuar</h3><p>Depois de preencher Data e horário e Pagamento, os produtos identificados, os valores e o botão de registro serão liberados.</p></div></section>}
           </div> : null}
 

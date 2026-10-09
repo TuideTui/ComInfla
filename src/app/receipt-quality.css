@@ -130,3 +130,8 @@
   .receipt-purchase-data-grid { grid-template-columns:1fr !important; }
   .receipt-flow-lock { align-items:flex-start; }
 }
+
+
+/* Indexed NFC-e recovery */
+.receipt-review-item.incomplete { border-color:rgba(240,207,135,.34); background:linear-gradient(135deg,rgba(240,207,135,.035),#101011 38%); }
+.receipt-review-item.incomplete .receipt-confidence { border-color:rgba(240,207,135,.28); color:#e4bd60; }
