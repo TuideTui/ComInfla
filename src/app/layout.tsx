@@ -20,6 +20,8 @@ import './auth-transition.css'
 import './landing-mobile.css'
 import './receipt-import.css'
 import './receipt-import-polish.css'
+import './purchase-modes.css'
+import './receipt-quality.css'
 import { LandingLiveEffects } from '../components/landing-live-effects'
 
 export const metadata: Metadata = {
