@@ -81,7 +81,8 @@ function detectDeclaredItemCount(text: string) {
   const compact = lines.join(' ')
 
   const indexes = lines.map((line) => {
-    const match = line.match(/^\s*0?(\d{1,2})\s+(?:(?:\d[\dO]{5,13})\s+)?[A-Z]/)
+    // Só consideramos índice quando a mesma linha também parece uma linha real de produto.
+    const match = line.match(/^\s*0?(\d{1,2})\s+(?:\d[\dO]{7,13})\s+[A-ZÀ-Ý]/)
     return match ? Number(match[1]) : 0
   }).filter((value) => value > 0 && value <= 99)
   const unique = [...new Set(indexes)].sort((a, b) => a - b)
@@ -108,6 +109,37 @@ function detectDeclaredItemCount(text: string) {
 
   if (sequentialMax >= 2) return sequentialMax
   return null
+}
+
+function detectLikelyProductRowCount(text: string) {
+  const normalized = text
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+  const lines = normalized.split(/\r?\n/).map((line) => line.replace(/\s+/g, ' ').trim()).filter(Boolean)
+  let insideItems = false
+  let count = 0
+  for (const line of lines) {
+    if (/DESCRI/.test(line) && /(QTD|VL|TOTAL|CODIGO)/.test(line)) { insideItems = true; continue }
+    if (!insideItems) continue
+    if (/(QTD\W*TOTAL|VALOR\W*TOTAL|CARTAO|CONSULTE\W+PELA)/.test(line)) break
+    const head = line.slice(0, 38)
+    if (/\d{7,14}/.test(head) && /[A-Z]{3,}/.test(line)) count++
+  }
+  return count
+}
+
+function resolveDeclaredItemCount(texts: string[], parsedItemCount: number) {
+  const joined = texts.join('\n')
+  const declared = detectDeclaredItemCount(joined)
+  const visualCount = Math.max(0, ...texts.map(detectLikelyProductRowCount))
+
+  // Em NFC-e, a quantidade de linhas de produto com código é uma evidência forte.
+  // Se ela coincide com o que o parser canônico reconstruiu, usamos esse número.
+  if (visualCount >= 3 && parsedItemCount === visualCount) return visualCount
+  if (declared && declared >= 1 && declared <= 60) return declared
+  if (visualCount >= 3) return visualCount
+  return parsedItemCount > 0 ? parsedItemCount : null
 }
 
 function productLabel(product: ProductOption) {
@@ -276,24 +308,34 @@ function makeMissingReceiptItem(index: number): ReviewItem {
 }
 
 function ensureDeclaredItemSlots(items: ReviewItem[], declaredCount: number | null) {
-  if (!declaredCount || declaredCount < 1 || declaredCount > 60 || items.length >= declaredCount) return items
+  if (!declaredCount || declaredCount < 1 || declaredCount > 60) return items
+
   const indexed = new Map<number, ReviewItem>()
   const unindexed: ReviewItem[] = []
+  const seen = new Set<string>()
+
   for (const item of items) {
+    const signature = `${item.barcode || normalizeForMatch(item.name)}|${item.quantity.toFixed(3)}|${item.unitPriceCents}|${item.totalCents}`
+    if (seen.has(signature)) continue
+    seen.add(signature)
     const index = receiptItemIndex(item)
-    if (index && !indexed.has(index)) indexed.set(index, item)
+    if (index >= 1 && index <= declaredCount && !indexed.has(index)) indexed.set(index, item)
     else unindexed.push(item)
   }
-  if (indexed.size < 2) return items
-  let missingNeeded = declaredCount - items.length
+
   const result: ReviewItem[] = []
   for (let index = 1; index <= declaredCount; index++) {
-    const existing = indexed.get(index)
-    if (existing) result.push(existing)
-    else if (missingNeeded > 0) { result.push(makeMissingReceiptItem(index)); missingNeeded-- }
+    const indexedItem = indexed.get(index)
+    if (indexedItem) {
+      result.push(indexedItem)
+      continue
+    }
+    const fallback = unindexed.shift()
+    result.push(fallback ?? makeMissingReceiptItem(index))
   }
-  result.push(...unindexed)
-  return result
+
+  // Regra de invariância: uma revisão nunca pode ter mais slots que o total declarado.
+  return result.slice(0, declaredCount)
 }
 
 function qualityCopy(quality: ImportQuality) {
@@ -493,8 +535,8 @@ export function ReceiptImporterV2({ products, establishments }: { products: Prod
       setProgress(94); setProgressText('Conferindo itens repetidos e procurando seu catálogo…')
       const parsed = mergeReceiptParts(parts)
       const fingerprint = await buildFingerprint(parsed)
-      const declaredItemCount = detectDeclaredItemCount(texts.join('\n'))
       const mappedItems = parsed.items.map((item) => ({ ...item, productId: bestProduct(item, products) }))
+      const declaredItemCount = resolveDeclaredItemCount(texts, mappedItems.length)
       const reviewItems = ensureDeclaredItemSlots(mappedItems, declaredItemCount)
       const review: ReviewDraft = {
         ...parsed,
@@ -502,7 +544,7 @@ export function ReceiptImporterV2({ products, establishments }: { products: Prod
         fingerprint,
         establishmentId: '',
         isNewEstablishment: null,
-        declaredItemCount: declaredItemCount ? Math.max(declaredItemCount, reviewItems.length) : (reviewItems.length || null),
+        declaredItemCount: declaredItemCount ?? (reviewItems.length || null),
         items: reviewItems,
       }
       setDraft(review)
@@ -624,7 +666,7 @@ export function ReceiptImporterV2({ products, establishments }: { products: Prod
               {draft.isNewEstablishment === false ? <div className="field receipt-location-existing"><span>Estabelecimento *</span><SearchableSelect value={draft.establishmentId} onChange={(value) => updateDraft({ establishmentId: value })} options={establishmentOptions} placeholder="Escolha um estabelecimento" searchPlaceholder="Buscar estabelecimento…" emptyMessage="Nenhum estabelecimento cadastrado." ariaLabel="Estabelecimento"/></div> : null}
             </section>
 
-            {draft.warnings.length ? <div className="receipt-review-warnings">{draft.warnings.map((warning) => <span key={warning}>! {warning}</span>)}</div> : null}
+            {draft.warnings.filter((warning) => !/(recuperad|preservad|interpretad|linha\(s\)|item\(ns\))/i.test(warning)).length ? <div className="receipt-review-warnings">{draft.warnings.filter((warning) => !/(recuperad|preservad|interpretad|linha\(s\)|item\(ns\))/i.test(warning)).map((warning) => <span key={warning}>! {warning}</span>)}</div> : null}
 
             {establishmentReady ? <section className="receipt-review-card receipt-purchase-data receipt-flow-unlocked"><div className="receipt-card-title"><div><span className="page-kicker">DADOS DA COMPRA</span><h3>{sourceLabel(draft.sourceKind)}</h3><p>Preencha os dois campos obrigatórios para liberar a revisão dos itens.</p></div><span className="receipt-flow-badge">ETAPA 2</span></div><div className="receipt-review-main-grid receipt-purchase-data-grid"><label className="field"><span>Data e horário *</span><input type="datetime-local" required value={localDateTimeInput(draft.purchasedAt)} onChange={(e)=>updateDraft({purchasedAt:e.target.value ? dateInputToIso(e.target.value) : ''})}/><small className="receipt-required-note">Confirme manualmente a data correta da compra.</small></label><label className="field"><span>Pagamento *</span><select required value={draft.paymentMethod} onChange={(e)=>updateDraft({paymentMethod:e.target.value})}><option value="">Selecione a forma de pagamento</option><option value="debit_card">Cartão de débito</option><option value="credit_card">Cartão de crédito</option><option value="pix">Pix</option><option value="cash">Dinheiro</option><option value="benefit">VA / VR</option><option value="other">Outro</option></select><small className="receipt-required-note">Informe como esta compra foi paga.</small></label></div></section> : <section className="receipt-flow-lock"><span className="receipt-flow-lock-icon">2</span><div><span className="page-kicker">PRÓXIMA ETAPA</span><h3>Dados da compra bloqueados</h3><p>Primeiro confirme acima se o estabelecimento já está cadastrado e selecione o local correto.</p></div></section>}
 
