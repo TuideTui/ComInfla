@@ -2,6 +2,7 @@
 
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
+import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 
 function safeMessage(message: string) {
@@ -18,6 +19,12 @@ async function getSiteUrl() {
   const headerStore = await headers()
   const origin = headerStore.get('origin')
   return origin?.replace(/\/$/, '') ?? 'http://localhost:3000'
+}
+
+async function currentUserId() {
+  const supabase = await createClient()
+  const { data: claimsData } = await supabase.auth.getClaims()
+  return { supabase, userId: claimsData?.claims?.sub as string | undefined }
 }
 
 export async function login(formData: FormData) {
@@ -111,7 +118,7 @@ export async function resendConfirmation(formData: FormData) {
   }
 
   redirect(
-    `/verify-email?email=${emailParam}&cooldown=1&message=${safeMessage('Novo email de confirmação solicitado. Confira também a caixa de spam e lixo eletrônico.')}`
+    `/verify-email?email=${emailParam}&cooldown=1&message=${safeMessage('Novo email de confirmação solicitado. Confira também a caixa de spam e lixo eletrônico.')}`)
   )
 }
 
@@ -153,4 +160,51 @@ export async function updatePassword(formData: FormData) {
   }
 
   redirect(`/app?message=${safeMessage('Senha alterada com sucesso.')}`)
+}
+
+export type AccountActionResult = { ok: boolean; message: string }
+
+export async function updateAccountProfile(formData: FormData): Promise<AccountActionResult> {
+  const { supabase, userId } = await currentUserId()
+  if (!userId) return { ok: false, message: 'Sua sessão expirou. Entre novamente.' }
+
+  const fullName = String(formData.get('full_name') ?? '').trim()
+  const city = String(formData.get('city') ?? '').trim()
+  const state = String(formData.get('state') ?? '').trim().toUpperCase().slice(0, 2)
+
+  if (fullName.length < 2 || fullName.length > 120) {
+    return { ok: false, message: 'Informe um nome válido.' }
+  }
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({ full_name: fullName, city: city || null, state: state || null, updated_at: new Date().toISOString() })
+    .eq('id', userId)
+
+  if (error) return { ok: false, message: 'Não foi possível salvar o perfil agora.' }
+
+  revalidatePath('/app', 'layout')
+  return { ok: true, message: 'Perfil atualizado.' }
+}
+
+export async function clearMyCominflaData(): Promise<AccountActionResult> {
+  const { supabase, userId } = await currentUserId()
+  if (!userId) return { ok: false, message: 'Sua sessão expirou. Entre novamente.' }
+
+  const { error } = await supabase.rpc('clear_my_cominfla_data')
+  if (error) return { ok: false, message: 'Não foi possível apagar seus dados agora.' }
+
+  revalidatePath('/app', 'layout')
+  return { ok: true, message: 'Seus dados da plataforma foram apagados. Sua conta continua ativa.' }
+}
+
+export async function deleteMyCominflaAccount(): Promise<AccountActionResult> {
+  const { supabase, userId } = await currentUserId()
+  if (!userId) return { ok: false, message: 'Sua sessão expirou. Entre novamente.' }
+
+  const { error } = await supabase.rpc('delete_my_cominfla_account')
+  if (error) return { ok: false, message: 'Não foi possível excluir sua conta agora.' }
+
+  await supabase.auth.signOut()
+  return { ok: true, message: 'Conta excluída.' }
 }
