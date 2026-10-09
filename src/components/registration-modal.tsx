@@ -39,8 +39,9 @@ export function RegistrationModal({ kind, kicker, title, description, children, 
 
   useEffect(() => {
     setMounted(true)
-    if (initialOpen) setOpen(true)
-  }, [initialOpen])
+    const requestedKind = new URLSearchParams(window.location.search).get('open')
+    if (initialOpen || requestedKind === kind) setOpen(true)
+  }, [initialOpen, kind])
 
   useEffect(() => {
     if (!open) return
