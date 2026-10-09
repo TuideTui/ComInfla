@@ -9,6 +9,7 @@ type RegistrationModalProps = {
   title: string
   description: string
   children: ReactNode
+  initialOpen?: boolean
 }
 
 function ProductIcon() {
@@ -31,14 +32,15 @@ function StoreIcon() {
   )
 }
 
-export function RegistrationModal({ kind, kicker, title, description, children }: RegistrationModalProps) {
+export function RegistrationModal({ kind, kicker, title, description, children, initialOpen = false }: RegistrationModalProps) {
   const [open, setOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
   const titleId = useId()
 
   useEffect(() => {
     setMounted(true)
-  }, [])
+    if (initialOpen) setOpen(true)
+  }, [initialOpen])
 
   useEffect(() => {
     if (!open) return
