@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useId, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 
 type RegistrationModalProps = {
   kind: 'product' | 'establishment'
@@ -32,7 +33,12 @@ function StoreIcon() {
 
 export function RegistrationModal({ kind, kicker, title, description, children }: RegistrationModalProps) {
   const [open, setOpen] = useState(false)
+  const [mounted, setMounted] = useState(false)
   const titleId = useId()
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   useEffect(() => {
     if (!open) return
@@ -53,6 +59,37 @@ export function RegistrationModal({ kind, kicker, title, description, children }
     }
   }, [open])
 
+  const modal = open && mounted ? createPortal(
+    <div
+      className="registration-modal-backdrop"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.currentTarget === event.target) setOpen(false)
+      }}
+    >
+      <section
+        className={`premium-card registration-modal registration-modal-${kind}`}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+      >
+        <header className="registration-modal-header">
+          <div className="registration-modal-heading">
+            <span className="registration-modal-icon">{kind === 'product' ? <ProductIcon /> : <StoreIcon />}</span>
+            <div>
+              <span className="page-kicker">{kicker}</span>
+              <h2 id={titleId}>{title}</h2>
+              <p>{description}</p>
+            </div>
+          </div>
+          <button className="registration-modal-close" type="button" onClick={() => setOpen(false)} aria-label="Fechar cadastro">×</button>
+        </header>
+        <div className="registration-modal-body">{children}</div>
+      </section>
+    </div>,
+    document.body,
+  ) : null
+
   return (
     <>
       <button className={`registration-launch-card ${kind}`} type="button" onClick={() => setOpen(true)}>
@@ -64,36 +101,7 @@ export function RegistrationModal({ kind, kicker, title, description, children }
         </span>
         <span className="registration-launch-action" aria-hidden="true">+</span>
       </button>
-
-      {open ? (
-        <div
-          className="registration-modal-backdrop"
-          role="presentation"
-          onMouseDown={(event) => {
-            if (event.currentTarget === event.target) setOpen(false)
-          }}
-        >
-          <section
-            className={`premium-card registration-modal registration-modal-${kind}`}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby={titleId}
-          >
-            <header className="registration-modal-header">
-              <div className="registration-modal-heading">
-                <span className="registration-modal-icon">{kind === 'product' ? <ProductIcon /> : <StoreIcon />}</span>
-                <div>
-                  <span className="page-kicker">{kicker}</span>
-                  <h2 id={titleId}>{title}</h2>
-                  <p>{description}</p>
-                </div>
-              </div>
-              <button className="registration-modal-close" type="button" onClick={() => setOpen(false)} aria-label="Fechar cadastro">×</button>
-            </header>
-            <div className="registration-modal-body">{children}</div>
-          </section>
-        </div>
-      ) : null}
+      {modal}
     </>
   )
 }
