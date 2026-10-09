@@ -1,7 +1,5 @@
 import Link from 'next/link'
-import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { AppHeader } from '@/components/app-header'
 import { PurchaseForm } from '@/components/purchase-form'
 import { PurchaseInsightModal } from '@/components/purchase-insight-modal'
 import { deletePurchase } from './actions'
@@ -13,17 +11,13 @@ type Params = Record<string, string | string[] | undefined>
 export default async function ShoppingPage({ searchParams }: { searchParams: Promise<Params> }) {
   const params = await searchParams
   const supabase = await createClient()
-  const { data: claimsData } = await supabase.auth.getClaims()
-  const userId = claimsData?.claims?.sub
-  if (!userId) redirect('/login')
 
   const purchaseId = typeof params.purchase === 'string' ? params.purchase : ''
-  const [{ data: profile }, { data: products }, { data: establishments }, { data: purchases }, { data: allPrices }] = await Promise.all([
-    supabase.from('profiles').select('full_name').eq('id', userId).single(),
+  const [{ data: products }, { data: establishments }, { data: purchases }, { data: priceStats }] = await Promise.all([
     supabase.from('products').select('id,name,brand,presentation,base_quantity,unit,packaging,subcategory,category_id').is('archived_at', null).order('name'),
     supabase.from('establishments').select('id,name,establishment_type,visit_frequency,neighborhood,city,state').is('archived_at', null).order('visit_frequency').order('name'),
     supabase.from('purchases').select('id,purchased_at,total_cents,payment_method,notes,establishment_name_snapshot,establishment:establishments(id,name,neighborhood),items:purchase_items(id,product_id,quantity,unit_price_cents,total_cents,is_promotion,product_snapshot,product:products(id,name,brand,presentation,base_quantity,unit,packaging),insights:insight_events(id,title,message,severity,insight_type,metric_value,metadata))').order('purchased_at', { ascending: false }).limit(30),
-    supabase.from('purchase_items').select('product_id,unit_price_cents'),
+    supabase.from('product_price_stats').select('product_id,price_count,average_unit_price_cents'),
   ])
 
   let freshInsights: any[] = []
@@ -36,22 +30,20 @@ export default async function ShoppingPage({ searchParams }: { searchParams: Pro
     }
   }
 
-  const averages = new Map<string, { total: number; count: number }>()
-  for (const row of allPrices ?? []) {
-    const current = averages.get(row.product_id) ?? { total: 0, count: 0 }
-    current.total += Number(row.unit_price_cents)
-    current.count += 1
-    averages.set(row.product_id, current)
+  const averages = new Map<string, { average: number; count: number }>()
+  for (const row of priceStats ?? []) {
+    averages.set(row.product_id, {
+      average: Number(row.average_unit_price_cents ?? 0),
+      count: Number(row.price_count ?? 0),
+    })
   }
 
-  const firstName = profile?.full_name?.split(' ')[0] || 'você'
   const messageText = typeof params.message === 'string' ? params.message : undefined
   const errorText = typeof params.error === 'string' ? params.error : undefined
   const readyToBuy = Boolean(products?.length && establishments?.length)
 
   return (
     <main className="app-shell">
-      <AppHeader active="comprando" firstName={firstName} />
       <PurchaseInsightModal insights={freshInsights} />
       <section className="app-content">
         <div className="dashboard-heading">
@@ -121,7 +113,7 @@ export default async function ShoppingPage({ searchParams }: { searchParams: Pro
                       {(purchase.items ?? []).map((item: any) => {
                         const product = item.product ?? item.product_snapshot
                         const avg = averages.get(item.product_id)
-                        const average = avg?.count ? avg.total / avg.count : 0
+                        const average = avg?.average ?? 0
                         const delta = average ? ((Number(item.unit_price_cents) / average) - 1) * 100 : 0
 
                         return (
