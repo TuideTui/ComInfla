@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { AppHeader } from '@/components/app-header'
+import { AppHeader, ConfirmSubmitButton } from '@/components/app-header'
 import { MediaUpload } from '@/components/media-upload'
 import { deleteOrArchiveProduct, updateProduct } from '@/app/app/cadastrando/actions'
 
@@ -36,6 +36,7 @@ export default async function EditProductPage({
   const firstName = profile?.full_name?.split(' ')[0] || 'você'
   const photoUrl = await signedMediaUrl(supabase, product.photo_path)
   const error = typeof query.error === 'string' ? query.error : undefined
+  const hasHistory = (purchaseCount ?? 0) > 0
 
   return (
     <main className="app-shell">
@@ -68,8 +69,15 @@ export default async function EditProductPage({
         </section>
 
         <section className="premium-card danger-zone">
-          <div><span className="page-kicker">REMOVER DO CATÁLOGO</span><h2>{(purchaseCount ?? 0) > 0 ? 'Arquivar produto' : 'Excluir produto'}</h2><p>{(purchaseCount ?? 0) > 0 ? `Este produto possui ${purchaseCount} item(ns) no histórico. Por segurança, ele será arquivado e deixará de aparecer em novas compras, mas o histórico continuará intacto.` : 'Este produto ainda não possui compras registradas e pode ser excluído definitivamente.'}</p></div>
-          <form action={deleteOrArchiveProduct}><input type="hidden" name="product_id" value={product.id} /><button className="danger-button" type="submit">{(purchaseCount ?? 0) > 0 ? 'Arquivar produto' : 'Excluir produto'}</button></form>
+          <div><span className="page-kicker">REMOVER DO CATÁLOGO</span><h2>{hasHistory ? 'Arquivar produto' : 'Excluir produto'}</h2><p>{hasHistory ? `Este produto possui ${purchaseCount} item(ns) no histórico. Por segurança, ele será arquivado e deixará de aparecer em novas compras, mas o histórico continuará intacto.` : 'Este produto ainda não possui compras registradas e pode ser excluído definitivamente.'}</p></div>
+          <form action={deleteOrArchiveProduct}>
+            <input type="hidden" name="product_id" value={product.id} />
+            <ConfirmSubmitButton
+              label={hasHistory ? 'Arquivar produto' : 'Excluir produto'}
+              title={hasHistory ? 'Arquivar este produto?' : 'Excluir este produto?'}
+              description={hasHistory ? 'Ele deixará de aparecer em novas compras, mas todo o histórico já registrado será preservado.' : 'O produto será removido definitivamente do seu catálogo. Esta ação não poderá ser desfeita.'}
+            />
+          </form>
         </section>
       </section>
     </main>
