@@ -41,6 +41,48 @@
 .receipt-retry-line { display:flex; justify-content:flex-end; gap:16px; margin-top:10px; }
 .receipt-retry-line .text-link { background:none; border:0; cursor:pointer; font-size:11px; }
 
+.receipt-location-choice {
+  border:1px solid rgba(255,255,255,.09);
+  border-radius:18px;
+  padding:18px;
+  background:rgba(255,255,255,.015);
+  display:grid;
+  gap:15px;
+}
+.receipt-location-choice-head h3 { margin:4px 0 5px; font-size:18px; }
+.receipt-location-choice-head p { margin:0; color:#939393; line-height:1.45; }
+.receipt-location-choice-actions { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.receipt-location-choice-button {
+  min-height:62px;
+  border:1px solid rgba(255,255,255,.1);
+  border-radius:14px;
+  background:#0d0d0e;
+  color:#f4f0e8;
+  padding:12px 14px;
+  cursor:pointer;
+  text-align:left;
+  display:grid;
+  gap:3px;
+  transition:border-color .15s ease,background .15s ease,transform .15s ease;
+}
+.receipt-location-choice-button:hover { border-color:rgba(240,207,135,.35); background:#12110f; transform:translateY(-1px); }
+.receipt-location-choice-button.active { border-color:rgba(240,207,135,.55); background:rgba(240,207,135,.07); }
+.receipt-location-choice-button strong { font-size:13px; }
+.receipt-location-choice-button span { color:#8e8e8e; font-size:11px; }
+.receipt-location-new {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:18px;
+  padding:14px 15px;
+  border:1px solid rgba(240,207,135,.2);
+  border-radius:14px;
+  background:rgba(240,207,135,.035);
+}
+.receipt-location-new p { margin:0; color:#a4a4a4; line-height:1.45; }
+.receipt-location-existing { max-width:620px; }
+.receipt-required-note { margin:5px 0 0; color:#777; font-size:11px; }
+
 @media (max-width: 760px) {
   .receipt-quality-head { flex-wrap:wrap; }
   .receipt-quality-head > strong { margin-left:22px; }
@@ -52,4 +94,7 @@
   .receipt-no-items-actions .button,
   .receipt-no-items-actions .ghost-button { width:100%; }
   .receipt-retry-line { flex-direction:column; align-items:flex-start; }
+  .receipt-location-choice-actions { grid-template-columns:1fr; }
+  .receipt-location-new { flex-direction:column; align-items:stretch; }
+  .receipt-location-new .button { width:100%; }
 }
