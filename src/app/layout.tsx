@@ -4,6 +4,7 @@ import './globals.css'
 import './brand.css'
 import './landing.css'
 import './feature-steps.css'
+import './landing-motion.css'
 import './app.css'
 import './insights.css'
 import './catalog.css'
@@ -12,6 +13,7 @@ import './closing-history.css'
 import './compare.css'
 import './registering.css'
 import './registering-modal.css'
+import { LandingLiveEffects } from '../components/landing-live-effects'
 
 export const metadata: Metadata = {
   title: 'ComInfla — Sua inflação pessoal',
@@ -21,7 +23,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="pt-BR">
-      <body>{children}</body>
+      <body>
+        <LandingLiveEffects />
+        {children}
+      </body>
     </html>
   )
 }
