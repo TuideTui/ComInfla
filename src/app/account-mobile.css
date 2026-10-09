@@ -1,0 +1,30 @@
+/* Ajustes específicos das configurações de conta no mobile */
+@media (max-width: 720px) {
+  /* O botão lateral some no mobile por padrão. Quando Perfil está ativo,
+     reaproveitamos o mesmo formulário de logout em uma área fácil de alcançar. */
+  .account-settings-panel-v2 .account-settings-sidebar:has(> nav button:first-child.active) .account-signout-form {
+    display: block !important;
+    position: fixed;
+    left: 14px;
+    right: 14px;
+    bottom: max(14px, env(safe-area-inset-bottom));
+    z-index: 40;
+    margin: 0 !important;
+    padding: 10px 0 0;
+    background: linear-gradient(180deg, rgba(13,13,14,0), rgba(13,13,14,.92) 34%);
+    pointer-events: auto;
+  }
+
+  .account-settings-panel-v2 .account-settings-sidebar:has(> nav button:first-child.active) .account-signout-button {
+    width: 100%;
+    min-height: 48px;
+    border-radius: 12px;
+    font-size: .92rem;
+    font-weight: 700;
+  }
+
+  /* Evita que o botão cubra os últimos campos do Perfil. */
+  .account-settings-panel-v2:has(.account-settings-sidebar > nav button:first-child.active) .account-section-body {
+    padding-bottom: 96px !important;
+  }
+}
