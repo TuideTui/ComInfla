@@ -1,11 +1,10 @@
-import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
-import { PurchaseForm } from '@/components/purchase-form'
 import { PurchaseInsightModal } from '@/components/purchase-insight-modal'
-import { ReceiptImporter } from '@/components/receipt-importer'
+import { PurchaseRegistrationModes } from '@/components/purchase-registration-modes'
 import { deletePurchase } from './actions'
 import { formatBRL, formatDateTime, productLabel } from '@/lib/format'
 import { insightDescription } from '@/lib/insights'
+import Link from 'next/link'
 
 type Params = Record<string, string | string[] | undefined>
 
@@ -41,7 +40,6 @@ export default async function ShoppingPage({ searchParams }: { searchParams: Pro
 
   const messageText = typeof params.message === 'string' ? params.message : undefined
   const errorText = typeof params.error === 'string' ? params.error : undefined
-  const readyToBuy = Boolean(products?.length && establishments?.length)
 
   return (
     <main className="app-shell">
@@ -51,7 +49,7 @@ export default async function ShoppingPage({ searchParams }: { searchParams: Pro
           <div>
             <span className="page-kicker">REGISTRO E HISTÓRICO</span>
             <h1>Comprando</h1>
-            <p>Registre manualmente ou transforme fotos e comprovantes em compras revisáveis.</p>
+            <p>Escolha a forma mais prática de registrar cada compra e deixe o histórico trabalhar por você.</p>
           </div>
           <div className="heading-stats">
             <span>{purchases?.length ?? 0} registros recentes</span>
@@ -63,35 +61,10 @@ export default async function ShoppingPage({ searchParams }: { searchParams: Pro
         {errorText ? <div className="notice notice-error page-notice">{errorText}</div> : null}
         {messageText ? <div className="notice notice-success page-notice">{messageText}</div> : null}
 
-        <section className="premium-card work-card" id="registrar-compra">
-          <div className="section-inline-heading">
-            <div>
-              <span className="page-kicker">REGISTRAR COMPRA</span>
-              <h2>Como você quer registrar?</h2>
-              <p>Use a importação inteligente para notas e pedidos, ou continue preenchendo manualmente quando preferir.</p>
-            </div>
-            <Link className="text-link small" href="/app/cadastrando">Gerenciar cadastros →</Link>
-          </div>
-
-          <ReceiptImporter products={(products ?? []) as any} establishments={(establishments ?? []) as any} />
-
-          <div className="purchase-manual-separator"><span>OU REGISTRE MANUALMENTE</span></div>
-
-          {readyToBuy ? (
-            <PurchaseForm products={products as any} establishments={establishments as any} />
-          ) : (
-            <div className="setup-state">
-              <strong>Prepare sua base para o modo manual</strong>
-              <p>O registro manual precisa de um produto e um estabelecimento cadastrados. A Importação inteligente acima pode criar esses cadastros automaticamente.</p>
-              <div className="setup-steps">
-                <span className={products?.length ? 'done' : ''}>1. Produto {products?.length ? '✓' : ''}</span>
-                <span className={establishments?.length ? 'done' : ''}>2. Estabelecimento {establishments?.length ? '✓' : ''}</span>
-                <span>3. Compra</span>
-              </div>
-              <Link className="button button-primary setup-cta" href="/app/cadastrando">Abrir Cadastrando</Link>
-            </div>
-          )}
-        </section>
+        <PurchaseRegistrationModes
+          products={(products ?? []) as any}
+          establishments={(establishments ?? []) as any}
+        />
 
         <section className="premium-card work-card history-section">
           <div className="section-inline-heading">
