@@ -3,6 +3,9 @@
   align-items: flex-end;
   justify-content: space-between;
   gap: 28px;
+  position: relative;
+  z-index: 300;
+  isolation: isolate;
 }
 
 .closing-heading-with-period > div:first-child { min-width: 0; }
@@ -16,6 +19,13 @@
   border-radius: 16px;
   background: linear-gradient(180deg, #151515, #101011);
   box-shadow: 0 16px 34px rgba(0,0,0,.2);
+  position: relative;
+  z-index: 310;
+  overflow: visible;
+}
+
+.closing-period-control:has(.searchable-select.open) {
+  z-index: 1200;
 }
 
 .closing-period-control.is-pending { opacity: .78; }
@@ -44,12 +54,20 @@
   grid-template-columns: minmax(0, 1.35fr) minmax(130px, .65fr);
   gap: 10px;
   align-items: end;
+  position: relative;
+  overflow: visible;
 }
 
 .closing-period-field {
   min-width: 0;
   display: grid;
   gap: 7px;
+  position: relative;
+  overflow: visible;
+}
+
+.closing-period-field:has(.searchable-select.open) {
+  z-index: 1250;
 }
 
 .closing-period-field > span {
@@ -69,6 +87,7 @@
 .closing-period-field .searchable-select-popover {
   width: 100%;
   min-width: 250px;
+  z-index: 1300;
 }
 
 .closing-year-field .searchable-select-popover {
