@@ -1,0 +1,31 @@
+.purchase-manual-separator {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 24px 0 22px;
+  color: #77736c;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .09em;
+  white-space: nowrap;
+}
+
+.purchase-manual-separator::before,
+.purchase-manual-separator::after {
+  content: '';
+  height: 1px;
+  flex: 1 1 auto;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.09));
+}
+
+.purchase-manual-separator::after {
+  background: linear-gradient(90deg, rgba(255,255,255,.09), transparent);
+}
+
+@media (max-width: 620px) {
+  .purchase-manual-separator {
+    margin: 20px 0 18px;
+    gap: 10px;
+    font-size: 8px;
+  }
+}
