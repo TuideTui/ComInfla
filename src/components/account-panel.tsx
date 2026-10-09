@@ -1,0 +1,339 @@
+'use client'
+
+import Link from 'next/link'
+import { createPortal } from 'react-dom'
+import { useEffect, useRef, useState, useTransition, type FormEvent } from 'react'
+import { useRouter } from 'next/navigation'
+import {
+  clearMyCominflaData,
+  deleteMyCominflaAccount,
+  requestAccountEmailChange,
+  updateAccountProfile,
+} from '@/app/actions'
+
+type AccountSection = 'profile' | 'plan' | 'security' | 'data'
+
+export type AccountProfile = {
+  fullName: string
+  email: string
+  city?: string | null
+  state?: string | null
+  currency?: string | null
+  locale?: string | null
+  timezone?: string | null
+  createdAt?: string | null
+  currentDevice?: string | null
+}
+
+function formatMemberSince(value?: string | null) {
+  if (!value) return '—'
+  return new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(new Date(value))
+}
+
+function ConfirmationDialog({
+  open,
+  title,
+  description,
+  confirmLabel = 'Confirmar',
+  phrase,
+  busy = false,
+  onCancel,
+  onConfirm,
+}: {
+  open: boolean
+  title: string
+  description: string
+  confirmLabel?: string
+  phrase?: string
+  busy?: boolean
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  const [typed, setTyped] = useState('')
+
+  useEffect(() => {
+    if (!open) setTyped('')
+  }, [open])
+
+  useEffect(() => {
+    if (!open) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !busy) onCancel()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [open, busy, onCancel])
+
+  if (!open || typeof document === 'undefined') return null
+  const enabled = !phrase || typed.trim().toUpperCase() === phrase.toUpperCase()
+
+  return createPortal(
+    <div className="confirm-dialog-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target && !busy) onCancel() }}>
+      <section className="confirm-dialog-card" role="alertdialog" aria-modal="true" aria-labelledby="confirm-dialog-title">
+        <span className="confirm-dialog-icon">!</span>
+        <div>
+          <span className="page-kicker">CONFIRMAÇÃO NECESSÁRIA</span>
+          <h3 id="confirm-dialog-title">{title}</h3>
+          <p>{description}</p>
+        </div>
+        {phrase ? (
+          <label className="confirm-phrase-field">
+            <span>Digite <b>{phrase}</b> para continuar</span>
+            <input value={typed} onChange={(event) => setTyped(event.target.value)} autoFocus autoComplete="off" />
+          </label>
+        ) : null}
+        <div className="confirm-dialog-actions">
+          <button type="button" className="ghost-button" onClick={onCancel} disabled={busy}>Cancelar</button>
+          <button type="button" className="danger-button confirm-danger-button" onClick={onConfirm} disabled={!enabled || busy}>{busy ? 'Aguarde…' : confirmLabel}</button>
+        </div>
+      </section>
+    </div>,
+    document.body,
+  )
+}
+
+export function ConfirmSubmitButton({
+  label,
+  title,
+  description,
+  confirmLabel,
+  className = 'danger-button',
+}: {
+  label: string
+  title: string
+  description: string
+  confirmLabel?: string
+  className?: string
+}) {
+  const [open, setOpen] = useState(false)
+  const formRef = useRef<HTMLFormElement | null>(null)
+
+  return (
+    <>
+      <button
+        type="button"
+        className={className}
+        onClick={(event) => {
+          formRef.current = event.currentTarget.form
+          setOpen(true)
+        }}
+      >
+        {label}
+      </button>
+      <ConfirmationDialog
+        open={open}
+        title={title}
+        description={description}
+        confirmLabel={confirmLabel ?? label}
+        onCancel={() => setOpen(false)}
+        onConfirm={() => {
+          setOpen(false)
+          window.requestAnimationFrame(() => formRef.current?.requestSubmit())
+        }}
+      />
+    </>
+  )
+}
+
+export function AccountPanel({ account, initial }: { account: AccountProfile; initial: string }) {
+  const router = useRouter()
+  const [open, setOpen] = useState(false)
+  const [section, setSection] = useState<AccountSection>('profile')
+  const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null)
+  const [confirm, setConfirm] = useState<'clear' | 'delete' | null>(null)
+  const [isPending, startTransition] = useTransition()
+
+  useEffect(() => {
+    if (!open) return
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    document.body.classList.add('account-panel-open')
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !confirm) setOpen(false)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      document.body.classList.remove('account-panel-open')
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [open, confirm])
+
+  function submitProfile(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const formData = new FormData(event.currentTarget)
+    setNotice(null)
+    startTransition(async () => {
+      const result = await updateAccountProfile(formData)
+      setNotice({ ok: result.ok, text: result.message })
+      if (result.ok) router.refresh()
+    })
+  }
+
+  function submitEmailChange(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const formData = new FormData(event.currentTarget)
+    setNotice(null)
+    startTransition(async () => {
+      const result = await requestAccountEmailChange(formData)
+      setNotice({ ok: result.ok, text: result.message })
+      if (result.ok) event.currentTarget.reset()
+    })
+  }
+
+  function runClearData() {
+    setNotice(null)
+    startTransition(async () => {
+      const result = await clearMyCominflaData()
+      setConfirm(null)
+      setNotice({ ok: result.ok, text: result.message })
+      if (result.ok) router.refresh()
+    })
+  }
+
+  function runDeleteAccount() {
+    setNotice(null)
+    startTransition(async () => {
+      const result = await deleteMyCominflaAccount()
+      if (!result.ok) {
+        setConfirm(null)
+        setNotice({ ok: false, text: result.message })
+        return
+      }
+      window.location.assign('/')
+    })
+  }
+
+  const panel = open && typeof document !== 'undefined' ? createPortal(
+    <div className="account-settings-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target && !isPending) setOpen(false) }}>
+      <section className="account-settings-panel account-settings-panel-v2" role="dialog" aria-modal="true" aria-label="Configurações da conta">
+        <aside className="account-settings-sidebar">
+          <div className="account-sidebar-user">
+            <span className="account-avatar-large">{initial}</span>
+            <div><strong>{account.fullName}</strong><small>{account.email}</small></div>
+          </div>
+
+          <nav aria-label="Configurações da conta">
+            <button className={section === 'profile' ? 'active' : ''} onClick={() => { setSection('profile'); setNotice(null) }}><span>Perfil</span><small>Dados pessoais</small></button>
+            <button className={section === 'plan' ? 'active' : ''} onClick={() => { setSection('plan'); setNotice(null) }}><span>Seu plano</span><small>ComInfla Essencial</small></button>
+            <button className={section === 'security' ? 'active' : ''} onClick={() => { setSection('security'); setNotice(null) }}><span>Segurança</span><small>Email, senha e sessão</small></button>
+            <button className={section === 'data' ? 'active' : ''} onClick={() => { setSection('data'); setNotice(null) }}><span>Política de dados</span><small>Privacidade e exclusão</small></button>
+          </nav>
+
+          <form className="account-signout-form" action="/auth/signout" method="post">
+            <button className="account-signout-button" type="submit">Sair do ComInfla</button>
+          </form>
+        </aside>
+
+        <div className="account-settings-content">
+          <header className="account-settings-header">
+            <div><span className="page-kicker">CONFIGURAÇÕES</span><h2>{section === 'profile' ? 'Seu perfil' : section === 'plan' ? 'Seu plano' : section === 'security' ? 'Segurança' : 'Privacidade e dados'}</h2></div>
+            <button className="account-settings-close" type="button" onClick={() => setOpen(false)} aria-label="Fechar configurações">×</button>
+          </header>
+
+          {notice ? <div className={`account-settings-notice ${notice.ok ? 'success' : 'error'}`}>{notice.text}</div> : null}
+
+          {section === 'profile' ? (
+            <div className="account-section-body">
+              <div className="account-section-intro"><h3>Informações da conta</h3><p>Esses dados ajudam a personalizar a experiência do ComInfla. Alterações de acesso ficam concentradas na aba Segurança.</p></div>
+              <form className="account-profile-form" onSubmit={submitProfile}>
+                <label><span>Nome</span><input name="full_name" defaultValue={account.fullName} maxLength={120} required /></label>
+                <label><span>Email</span><input value={account.email} disabled readOnly /><small>Para alterar seu email, acesse Segurança.</small></label>
+                <div className="account-form-grid">
+                  <label><span>Cidade</span><input name="city" defaultValue={account.city ?? ''} maxLength={120} placeholder="São Paulo" /></label>
+                  <label>
+                    <span>UF</span>
+                    <input
+                      name="state"
+                      defaultValue={(account.state ?? '').toUpperCase()}
+                      maxLength={2}
+                      minLength={2}
+                      pattern="[A-Z]{2}"
+                      inputMode="text"
+                      autoCapitalize="characters"
+                      placeholder="SP"
+                      onInput={(event) => {
+                        event.currentTarget.value = event.currentTarget.value.replace(/[^A-Za-z]/g, '').toUpperCase().slice(0, 2)
+                      }}
+                    />
+                  </label>
+                </div>
+                <div className="account-profile-meta">
+                  <span><small>Membro desde</small><b>{formatMemberSince(account.createdAt)}</b></span>
+                  <span><small>Moeda</small><b>{account.currency || 'BRL'}</b></span>
+                  <span><small>Fuso</small><b>{account.timezone || 'America/Sao_Paulo'}</b></span>
+                </div>
+                <div className="account-form-actions"><button className="button button-primary" type="submit" disabled={isPending}>{isPending ? 'Salvando…' : 'Salvar perfil'}</button></div>
+              </form>
+            </div>
+          ) : null}
+
+          {section === 'plan' ? (
+            <div className="account-section-body">
+              <div className="account-section-intro"><h3>ComInfla Essencial</h3><p>Seu plano atual inclui os recursos disponíveis hoje na plataforma.</p></div>
+              <div className="account-plan-card current"><div><span>PLANO ATUAL</span><h3>Essencial</h3><p>Cadastros, compras, análises, comparação, mapa e fechamento.</p></div><b>Ativo</b></div>
+              <div className="account-plan-card future"><div><span>EM PLANEJAMENTO</span><h3>ComInfla Plus</h3><p>No futuro, recursos avançados podem incluir automações, importação inteligente de comprovantes e análises ampliadas.</p></div><b>Futuro</b></div>
+              <p className="account-muted-note">Nenhuma cobrança ou assinatura paga está ativa hoje.</p>
+            </div>
+          ) : null}
+
+          {section === 'security' ? (
+            <div className="account-section-body account-security-section-v2">
+              <div className="account-section-intro"><h3>Acesso à sua conta</h3><p>Gerencie seu email, sua senha e confira a sessão usada neste momento.</p></div>
+
+              <div className="account-security-row"><div><strong>Email atual</strong><span>{account.email}</span></div><span className="account-security-state">Verificado</span></div>
+
+              <form className="account-email-change-card" onSubmit={submitEmailChange}>
+                <div className="account-security-block-heading"><div><strong>Alterar email</strong><p>O novo endereço só passa a valer depois da confirmação de segurança enviada por email.</p></div></div>
+                <div className="account-email-grid">
+                  <label><span>Novo email</span><input name="new_email" type="email" autoComplete="email" placeholder="novoemail@exemplo.com" required /></label>
+                  <label><span>Confirmar novo email</span><input name="confirm_email" type="email" autoComplete="off" placeholder="Repita o novo email" required /></label>
+                </div>
+                <div className="account-form-actions"><button className="ghost-button" type="submit" disabled={isPending}>{isPending ? 'Enviando…' : 'Solicitar alteração'}</button></div>
+              </form>
+
+              <div className="account-security-row"><div><strong>Senha</strong><span>Use a recuperação de senha para definir uma nova senha com segurança.</span></div><Link href="/forgot-password" className="ghost-button" onClick={() => setOpen(false)}>Alterar senha</Link></div>
+
+              <div className="account-session-card">
+                <div className="account-security-block-heading"><div><strong>Sessões e dispositivos</strong><p>Por enquanto mostramos com precisão a sessão atual. Uma lista completa de dispositivos exigiria uma camada própria de histórico de sessões.</p></div></div>
+                <div className="account-current-session">
+                  <span className="session-status-dot" aria-hidden="true" />
+                  <div><strong>{account.currentDevice || 'Navegador atual'}</strong><span>Esta sessão está ativa agora</span></div>
+                  <b>Atual</b>
+                </div>
+              </div>
+
+              <div className="account-security-note"><strong>Isolamento dos dados</strong><p>As tabelas pessoais usam políticas de acesso para que cada sessão autenticada trabalhe somente com os dados permitidos ao próprio usuário.</p></div>
+            </div>
+          ) : null}
+
+          {section === 'data' ? (
+            <div className="account-section-body account-data-section">
+              <div className="account-section-intro"><h3>Nossa responsabilidade com seus dados</h3><p>O ComInfla precisa dos registros que você adiciona para construir histórico de preços e análises pessoais. Esses dados devem ser usados somente para prestar as funções da plataforma e permanecer vinculados à sua conta.</p></div>
+              <div className="data-policy-grid">
+                <article><strong>O que armazenamos</strong><p>Perfil, produtos, estabelecimentos, compras, preços, insights, fechamentos e imagens que você decidir enviar.</p></article>
+                <article><strong>Como protegemos</strong><p>Autenticação, políticas de acesso no banco e armazenamento privado para as imagens cadastradas.</p></article>
+                <article><strong>Compartilhamento</strong><p>Seus registros pessoais não são publicados para outros usuários por padrão. Qualquer recurso agregado futuro deverá preservar a privacidade individual.</p></article>
+                <article><strong>Seu controle</strong><p>Você pode manter a conta e apagar seus dados de uso, ou excluir completamente a conta e os dados associados.</p></article>
+              </div>
+              <div className="account-data-warning"><strong>Zona de exclusão</strong><p>As ações abaixo são irreversíveis. Compras, históricos e análises apagados não poderão ser recuperados pela plataforma.</p></div>
+              <div className="account-danger-actions"><div><strong>Apagar dados da plataforma</strong><p>Remove compras, produtos, estabelecimentos, históricos, insights, fechamentos e imagens. Seu login e perfil permanecem ativos.</p></div><button className="danger-button secondary-danger" type="button" onClick={() => setConfirm('clear')}>Apagar meus dados</button></div>
+              <div className="account-danger-actions critical"><div><strong>Excluir minha conta</strong><p>Remove os dados da plataforma e também sua conta de autenticação. Ao concluir, você será desconectado e retornará à página inicial.</p></div><button className="danger-button" type="button" onClick={() => setConfirm('delete')}>Excluir minha conta</button></div>
+            </div>
+          ) : null}
+        </div>
+      </section>
+
+      <ConfirmationDialog open={confirm === 'clear'} title="Apagar todos os dados da plataforma?" description="Sua conta continuará existindo, mas compras, produtos, estabelecimentos, históricos, insights, fechamentos e imagens serão removidos definitivamente." confirmLabel="Sim, apagar meus dados" busy={isPending} onCancel={() => setConfirm(null)} onConfirm={runClearData} />
+      <ConfirmationDialog open={confirm === 'delete'} title="Excluir sua conta definitivamente?" description="Esta ação remove sua conta e os dados associados. Não será possível recuperar o histórico depois da exclusão." confirmLabel="Excluir conta" phrase="EXCLUIR" busy={isPending} onCancel={() => setConfirm(null)} onConfirm={runDeleteAccount} />
+    </div>,
+    document.body,
+  ) : null
+
+  return (
+    <>
+      <button className="avatar-button" type="button" title="Configurações da conta" aria-label="Abrir configurações da conta" onClick={() => setOpen(true)}>{initial}</button>
+      {panel}
+    </>
+  )
+}
