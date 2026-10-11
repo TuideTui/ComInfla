@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { Brand } from '../components/brand'
-
-const bars = [24, 31, 38, 47, 56, 66, 76, 88]
+import { LandingGlassCard } from '../components/landing-glass-card'
+import './landing-glass.css'
 
 const productAreas = [
   {
@@ -88,23 +88,7 @@ export default function HomePage() {
         </div>
 
         <div className="hero-visual reveal reveal-delay">
-          <div className="premium-card hero-card landing-hero-card">
-            <div className="hero-card-topline">
-              <span className="card-kicker">Exemplo de visualização</span>
-              <span className="live-dot">ComInfla</span>
-            </div>
-            <strong className="hero-number">+8,7%</strong>
-            <span className="muted">Inflação pessoal · últimos 12 meses</span>
-            <div className="bar-chart" aria-label="Exemplo visual de evolução da inflação">
-              {bars.map((height, index) => (
-                <span key={height + index} style={{ height: `${height}%` }} className={index === bars.length - 1 ? 'active' : ''} />
-              ))}
-            </div>
-            <div className="hero-card-insight">
-              <span>Insight</span>
-              <strong>Seu custo de vida subiu acima do padrão da sua cesta.</strong>
-            </div>
-          </div>
+          <LandingGlassCard />
         </div>
       </section>
 

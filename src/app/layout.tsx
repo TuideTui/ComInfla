@@ -22,7 +22,6 @@ import './receipt-import.css'
 import './receipt-import-polish.css'
 import './purchase-modes.css'
 import './receipt-quality.css'
-import { LandingLiveEffects } from '../components/landing-live-effects'
 
 export const metadata: Metadata = {
   title: 'ComInfla — Sua inflação pessoal',
@@ -38,7 +37,6 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="pt-BR">
       <body>
-        <LandingLiveEffects />
         {children}
       </body>
     </html>
