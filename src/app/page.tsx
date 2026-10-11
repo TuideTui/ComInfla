@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import Image from 'next/image'
 import { Brand } from '../components/brand'
 
 const bars = [24, 31, 38, 47, 56, 66, 76, 88]
@@ -87,7 +88,17 @@ export default function HomePage() {
           </div>
         </div>
 
-        <div className="hero-visual reveal reveal-delay">
+        <div className="hero-visual landing-hero-visual reveal reveal-delay">
+          <div className="hero-cash-photo">
+            <Image
+              src="/cominfla-cem-reais.png"
+              alt="Uma mão segurando uma nota de cem reais."
+              width={1448}
+              height={1086}
+              sizes="(max-width: 620px) calc(100vw - 12px), (max-width: 980px) 640px, 570px"
+              preload
+            />
+          </div>
           <div className="premium-card hero-card landing-hero-card">
             <div className="hero-card-topline">
               <span className="card-kicker">Exemplo de visualização</span>
