@@ -232,11 +232,18 @@ function modelScene(renderer: THREE.WebGLRenderer, canvas: HTMLCanvasElement, fo
   }
   const insights = new THREE.Group()
   box.add(insights)
+  const insightText = material(whiteText.clone())
+  insightText.clippingPlanes = [
+    new THREE.Plane(new THREE.Vector3(0, 1, 0), 2.925),
+    new THREE.Plane(new THREE.Vector3(0, -1, 0), -2.24),
+  ]
   let insightGroups: THREE.Group[] = []
+  let insightRoll: { from: number; to: number; startedAt: number } | null = null
   let compact = false
   let numberIndex = 0
   let insightIndex = 0
   const buildInsights = (size: number) => {
+    insightRoll = null
     for (const group of insightGroups) {
       group.traverse(object => {
         if (object instanceof THREE.Mesh) {
@@ -249,7 +256,7 @@ function modelScene(renderer: THREE.WebGLRenderer, canvas: HTMLCanvasElement, fo
     insightGroups = insightMessages.map(message => {
       const group = new THREE.Group()
       wrap(message, size, 5.5).forEach((line, index) => {
-        const mesh = text(line, size, .02, whiteText)
+        const mesh = text(line, size, .02, insightText)
         mesh.position.set(-2.75, -2.48 - index * size * 1.15, .31)
         group.add(mesh)
       })
@@ -259,16 +266,16 @@ function modelScene(renderer: THREE.WebGLRenderer, canvas: HTMLCanvasElement, fo
     })
     insightGroups[insightIndex].visible = true
   }
-  buildInsights(.28)
+  buildInsights(.26)
 
   let active = false
   let reducedMotion = false
   let disposed = false
   let frame = 0
   let lastFrame = 0
+  let lastRender = 0
   let elapsed = 0
-  let numberRoll: { from: number; to: number; elapsed: number } | null = null
-  let insightPulse = 0
+  let numberRoll: { from: number; to: number; startedAt: number } | null = null
   let lastShadowUpdate = 0
   const settleNumber = () => {
     numbers.forEach((number, index) => {
@@ -278,6 +285,13 @@ function modelScene(renderer: THREE.WebGLRenderer, canvas: HTMLCanvasElement, fo
     numberRoll = null
     renderer.shadowMap.needsUpdate = true
   }
+  const settleInsight = () => {
+    insightGroups.forEach((group, index) => {
+      group.visible = index === insightIndex
+      group.position.y = 0
+    })
+    insightRoll = null
+  }
   const render = () => { if (!disposed) renderer.render(scene, camera) }
   const animate = (timestamp: number) => {
     if (disposed || !active || reducedMotion) { frame = 0; return }
@@ -285,7 +299,9 @@ function modelScene(renderer: THREE.WebGLRenderer, canvas: HTMLCanvasElement, fo
     const delta = timestamp - lastFrame
     if (delta < 1000 / 30) return
     lastFrame = timestamp - delta % (1000 / 30)
-    const step = Math.min(delta, 100)
+    // Animation time follows visible wall time, even when the GPU skips frames.
+    const step = Math.max(0, timestamp - lastRender)
+    lastRender = timestamp
     elapsed += step / 1000
     bars.forEach((bar, index) => {
       const wave = 1 + Math.sin(elapsed * Math.PI * 2 / 4.2 - index * .5) * .085
@@ -293,17 +309,19 @@ function modelScene(renderer: THREE.WebGLRenderer, canvas: HTMLCanvasElement, fo
       bar.position.y = -1.5 + glassBars[index] * wave / 2
     })
     if (numberRoll) {
-      numberRoll.elapsed += step
-      const progress = Math.min(1, numberRoll.elapsed / 600)
+      const progress = Math.max(0, Math.min(1, (timestamp - numberRoll.startedAt) / 600))
       const eased = progress * progress * (3 - 2 * progress)
       numbers[numberRoll.from].position.y = numberBaseline + eased * 1.3
       numbers[numberRoll.to].position.y = numberBaseline - (1 - eased) * 1.3
       renderer.shadowMap.needsUpdate = true
       if (progress === 1) settleNumber()
     }
-    if (insightPulse > 0) {
-      insightPulse = Math.max(0, insightPulse - step / 550)
-      insights.position.z = Math.sin(insightPulse * Math.PI) * .035
+    if (insightRoll) {
+      const progress = Math.max(0, Math.min(1, (timestamp - insightRoll.startedAt) / 650))
+      const eased = progress * progress * (3 - 2 * progress)
+      insightGroups[insightRoll.from].position.y = eased * .85
+      insightGroups[insightRoll.to].position.y = -(1 - eased) * .85
+      if (progress === 1) settleInsight()
     }
     if (elapsed - lastShadowUpdate >= .16) {
       renderer.shadowMap.needsUpdate = true
@@ -331,7 +349,7 @@ function modelScene(renderer: THREE.WebGLRenderer, canvas: HTMLCanvasElement, fo
       brand.scale.setScalar(compact ? 1.18 : 1)
       period.scale.setScalar(compact ? 1.17 : 1)
       insightTitle.scale.setScalar(compact ? 1.2 : 1)
-      buildInsights(compact ? .33 : .28)
+      buildInsights(compact ? .305 : .26)
     }
     camera.position.set(compact ? 5.1 : 7.5, compact ? 2.8 : 3.8, 18)
     camera.lookAt(0, -.1, 0)
@@ -356,7 +374,7 @@ function modelScene(renderer: THREE.WebGLRenderer, canvas: HTMLCanvasElement, fo
       numberIndex = index
       if (!active || reducedMotion) settleNumber()
       else {
-        numberRoll = { from: previous, to: index, elapsed: 0 }
+        numberRoll = { from: previous, to: index, startedAt: performance.now() }
         numbers[index].position.y = numberBaseline - 1.3
         numbers[index].visible = true
       }
@@ -364,10 +382,16 @@ function modelScene(renderer: THREE.WebGLRenderer, canvas: HTMLCanvasElement, fo
       if (active) render()
     },
     setInsight(index) {
-      insightGroups[insightIndex].visible = false
+      if (index === insightIndex) return
+      settleInsight()
+      const previous = insightIndex
       insightIndex = index
-      insightGroups[index].visible = true
-      insightPulse = reducedMotion ? 0 : 1
+      if (!active || reducedMotion) settleInsight()
+      else {
+        insightRoll = { from: previous, to: index, startedAt: performance.now() }
+        insightGroups[index].position.y = -.85
+        insightGroups[index].visible = true
+      }
       if (active) render()
     },
     setActivity(nextActive, nextReducedMotion) {
@@ -376,18 +400,19 @@ function modelScene(renderer: THREE.WebGLRenderer, canvas: HTMLCanvasElement, fo
       reducedMotion = nextReducedMotion
       window.cancelAnimationFrame(frame)
       frame = 0
-      if (!active || reducedMotion) settleNumber()
+      if (!active || reducedMotion) {
+        settleNumber()
+        settleInsight()
+      }
       if (reducedMotion) {
         bars.forEach((bar, index) => {
           bar.scale.y = 1
           bar.position.y = -1.5 + glassBars[index] / 2
         })
-        insights.position.z = 0
-        insightPulse = 0
       }
       if (active) {
         render()
-        lastFrame = performance.now()
+        lastFrame = lastRender = performance.now()
         if (!reducedMotion) frame = window.requestAnimationFrame(animate)
       }
     },
