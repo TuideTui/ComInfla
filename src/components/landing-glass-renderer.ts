@@ -53,10 +53,11 @@ function modelScene(renderer: THREE.WebGLRenderer, canvas: HTMLCanvasElement, fo
   renderer.setClearColor(0x000000, 0)
   renderer.outputColorSpace = THREE.SRGBColorSpace
   renderer.toneMapping = THREE.ACESFilmicToneMapping
-  renderer.toneMappingExposure = 1.15
+  renderer.toneMappingExposure = 1.05
+  renderer.localClippingEnabled = true
   renderer.shadowMap.enabled = true
   renderer.shadowMap.type = THREE.PCFShadowMap
-  // The gentle waves do not need a new shadow map on every frame.
+  // Refresh moving shadows at a lower rate than the scene, except while rolling text.
   renderer.shadowMap.autoUpdate = false
   renderer.shadowMap.needsUpdate = true
 
@@ -75,12 +76,12 @@ function modelScene(renderer: THREE.WebGLRenderer, canvas: HTMLCanvasElement, fo
   const pmrem = new THREE.PMREMGenerator(renderer)
   const environment = pmrem.fromScene(room, .04, .1, 100)
   scene.environment = environment.texture
-  scene.environmentIntensity = .65
+  scene.environmentIntensity = .5
   room.dispose()
   pmrem.dispose()
 
-  const key = new THREE.DirectionalLight(0xfff0d4, 2.6)
-  key.position.set(-4, 7, 8)
+  const key = new THREE.DirectionalLight(0xfff8ea, 2.8)
+  key.position.set(-3, 5.5, 15)
   key.castShadow = true
   key.shadow.mapSize.set(512, 512)
   key.shadow.camera.left = -5
@@ -92,25 +93,28 @@ function modelScene(renderer: THREE.WebGLRenderer, canvas: HTMLCanvasElement, fo
   key.shadow.bias = -.001
   key.shadow.normalBias = .035
   scene.add(key)
-  const rim = new THREE.DirectionalLight(0xffda86, 2.4)
+  const rim = new THREE.DirectionalLight(0xffd075, 1.2)
   rim.position.set(6, 3, -2)
-  scene.add(rim, new THREE.HemisphereLight(0xfff4de, 0x1b1a16, 1.8))
+  scene.add(rim, new THREE.HemisphereLight(0xffffff, 0x101216, 1.2))
 
-  const gold = material(new THREE.MeshStandardMaterial({ color: 0xd7ad4c, metalness: .65, roughness: .25 }))
-  const goldSide = material(new THREE.MeshStandardMaterial({ color: 0x987021, metalness: .6, roughness: .3 }))
-  const charcoal = material(new THREE.MeshStandardMaterial({ color: 0x363631, metalness: .3, roughness: .32 }))
+  const gold = material(new THREE.MeshStandardMaterial({
+    color: 0xe7ae32, metalness: .4, roughness: .24,
+    emissive: 0x8f5300, emissiveIntensity: .2, envMapIntensity: .8,
+  }))
+  const goldSide = material(new THREE.MeshStandardMaterial({ color: 0xb57812, metalness: .4, roughness: .28 }))
+  const charcoal = material(new THREE.MeshStandardMaterial({ color: 0x343538, metalness: .25, roughness: .28, envMapIntensity: .6 }))
   const whiteText = material(new THREE.MeshStandardMaterial({ color: 0xf0ede4, roughness: .8, emissive: 0x534f43, emissiveIntensity: .25 }))
   const mutedText = material(new THREE.MeshStandardMaterial({ color: 0xaaa79e, roughness: 1, emissive: 0x666359, emissiveIntensity: .2 }))
-  const edge = material(new THREE.MeshStandardMaterial({ color: 0xd9cba9, metalness: .35, roughness: .2, transparent: true, opacity: .65 }))
+  const edge = material(new THREE.MeshStandardMaterial({ color: 0xb9a778, metalness: .15, roughness: .2, transparent: true, opacity: .4 }))
   const glass = material(new THREE.MeshPhysicalMaterial({
-    color: 0xc1c2b9, metalness: .03, roughness: .12,
-    transmission: .9, thickness: .18, ior: 1.46,
-    transparent: true, opacity: .58, depthWrite: false,
-    clearcoat: 1, clearcoatRoughness: .1,
+    color: 0xa7a28f, metalness: .02, roughness: .12,
+    transmission: .94, thickness: .12, ior: 1.45,
+    transparent: true, opacity: .3, depthWrite: false,
+    clearcoat: .7, clearcoatRoughness: .1, envMapIntensity: .45,
   }))
   const backMaterial = material(new THREE.MeshPhysicalMaterial({
-    color: 0x070809, metalness: .04, roughness: .4, envMapIntensity: .45,
-    transparent: true, opacity: .91, clearcoat: .25, clearcoatRoughness: .3,
+    color: 0x080a0c, metalness: .02, roughness: .28, envMapIntensity: .25,
+    transparent: true, opacity: .72, clearcoat: .16, clearcoatRoughness: .3,
   }))
 
   const box = new THREE.Group()
@@ -128,15 +132,15 @@ function modelScene(renderer: THREE.WebGLRenderer, canvas: HTMLCanvasElement, fo
   const back = new THREE.Mesh(geometry(new THREE.ExtrudeGeometry(roundedRectangle(6.88, 6.53, .43), {
     depth: .06, bevelEnabled: false, curveSegments: 12,
   })), backMaterial)
-  back.position.z = -.57
+  back.position.z = -.4
   back.receiveShadow = true
   box.add(back)
 
   // Fine rounded rims make the shallow glass walls visible against the dark page.
   for (const z of [-.53, .53]) {
-    const points = roundedRectangle(6.98, 6.63, .47).getPoints(16).map(point => new THREE.Vector3(point.x, point.y, z))
+    const points = roundedRectangle(6.98, 6.63, .47).getPoints(16).slice(0, -1).map(point => new THREE.Vector3(point.x, point.y, z))
     const curve = new THREE.CatmullRomCurve3(points, true, 'centripetal')
-    box.add(new THREE.Mesh(geometry(new THREE.TubeGeometry(curve, 120, .016, 5, true)), edge))
+    box.add(new THREE.Mesh(geometry(new THREE.TubeGeometry(curve, 120, .012, 5, true)), edge))
   }
 
   const text = (value: string, size: number, depth: number, face: THREE.Material, sides: THREE.Material = face, typeface = font) => {
@@ -162,11 +166,20 @@ function modelScene(renderer: THREE.WebGLRenderer, canvas: HTMLCanvasElement, fo
   const dot = new THREE.Mesh(geometry(new THREE.SphereGeometry(.045, 12, 8)), gold)
   dot.position.set(1.79, 2.68, -.1)
   box.add(dot)
-  const period = label('Inflação pessoal · últimos 12 meses', .29, -2.95, 1.02, -.08, mutedText)
+  const period = label('Inflação pessoal · últimos 12 meses', .29, -2.95, .96, -.08, mutedText)
 
+  const numberBaseline = 1.52
+  // Keep both moving values inside the percentage line, clear of its labels.
+  const numberWindow = [new THREE.Plane(new THREE.Vector3(0, 1, 0), -1.3), new THREE.Plane(new THREE.Vector3(0, -1, 0), 2.43)]
+  const numberFace = material(gold.clone())
+  const numberSide = material(goldSide.clone())
+  for (const surface of [numberFace, numberSide]) {
+    surface.clippingPlanes = numberWindow
+    surface.clipShadows = true
+  }
   const numbers = inflationValues.map(value => {
-    const mesh = text(value, 1.27, .13, gold, goldSide)
-    mesh.position.set(-2.98, 1.46, .02)
+    const mesh = text(value, 1.23, .13, numberFace, numberSide)
+    mesh.position.set(-2.98, numberBaseline, .02)
     mesh.castShadow = true
     mesh.visible = false
     box.add(mesh)
@@ -175,7 +188,7 @@ function modelScene(renderer: THREE.WebGLRenderer, canvas: HTMLCanvasElement, fo
   numbers[0].visible = true
 
   const plotBase = new THREE.Mesh(geometry(new RoundedBoxGeometry(5.98, .09, .94, 2, .035)), material(new THREE.MeshStandardMaterial({
-    color: 0x74623a, metalness: .65, roughness: .3,
+    color: 0x987327, metalness: .4, roughness: .28,
   })))
   plotBase.position.set(0, -1.56, .04)
   plotBase.receiveShadow = true
@@ -190,7 +203,7 @@ function modelScene(renderer: THREE.WebGLRenderer, canvas: HTMLCanvasElement, fo
   })
 
   const plaqueMaterial = material(new THREE.MeshPhysicalMaterial({
-    color: 0x24231c, metalness: .2, roughness: .32, clearcoat: .8, clearcoatRoughness: .2,
+    color: 0x17191c, metalness: .15, roughness: .28, clearcoat: .55, clearcoatRoughness: .2,
   }))
   const plaque = new THREE.Mesh(geometry(new RoundedBoxGeometry(6.05, 1.12, .22, 3, .09)), plaqueMaterial)
   plaque.position.set(0, -2.42, .16)
@@ -248,20 +261,23 @@ function modelScene(renderer: THREE.WebGLRenderer, canvas: HTMLCanvasElement, fo
   }
   buildInsights(.28)
 
-  const floor = new THREE.Mesh(geometry(new THREE.PlaneGeometry(12, 7)), material(new THREE.ShadowMaterial({ opacity: .3 })))
-  floor.rotation.x = -Math.PI / 2
-  floor.position.y = -3.42
-  floor.receiveShadow = true
-  scene.add(floor)
-
   let active = false
   let reducedMotion = false
   let disposed = false
   let frame = 0
   let lastFrame = 0
   let elapsed = 0
-  let numberPulse = 0
+  let numberRoll: { from: number; to: number; elapsed: number } | null = null
   let insightPulse = 0
+  let lastShadowUpdate = 0
+  const settleNumber = () => {
+    numbers.forEach((number, index) => {
+      number.visible = index === numberIndex
+      number.position.y = numberBaseline
+    })
+    numberRoll = null
+    renderer.shadowMap.needsUpdate = true
+  }
   const render = () => { if (!disposed) renderer.render(scene, camera) }
   const animate = (timestamp: number) => {
     if (disposed || !active || reducedMotion) { frame = 0; return }
@@ -269,19 +285,29 @@ function modelScene(renderer: THREE.WebGLRenderer, canvas: HTMLCanvasElement, fo
     const delta = timestamp - lastFrame
     if (delta < 1000 / 30) return
     lastFrame = timestamp - delta % (1000 / 30)
-    elapsed += Math.min(delta, 100) / 1000
+    const step = Math.min(delta, 100)
+    elapsed += step / 1000
     bars.forEach((bar, index) => {
-      const wave = 1 + Math.sin(elapsed * Math.PI * 2 / 4.2 - index * .42) * .025
+      const wave = 1 + Math.sin(elapsed * Math.PI * 2 / 4.2 - index * .5) * .085
       bar.scale.y = wave
       bar.position.y = -1.5 + glassBars[index] * wave / 2
     })
-    if (numberPulse > 0) {
-      numberPulse = Math.max(0, numberPulse - delta / 450)
-      numbers[numberIndex].position.y = 1.46 + Math.sin(numberPulse * Math.PI) * .08
+    if (numberRoll) {
+      numberRoll.elapsed += step
+      const progress = Math.min(1, numberRoll.elapsed / 600)
+      const eased = progress * progress * (3 - 2 * progress)
+      numbers[numberRoll.from].position.y = numberBaseline + eased * 1.3
+      numbers[numberRoll.to].position.y = numberBaseline - (1 - eased) * 1.3
+      renderer.shadowMap.needsUpdate = true
+      if (progress === 1) settleNumber()
     }
     if (insightPulse > 0) {
-      insightPulse = Math.max(0, insightPulse - delta / 550)
+      insightPulse = Math.max(0, insightPulse - step / 550)
       insights.position.z = Math.sin(insightPulse * Math.PI) * .035
+    }
+    if (elapsed - lastShadowUpdate >= .16) {
+      renderer.shadowMap.needsUpdate = true
+      lastShadowUpdate = elapsed
     }
     render()
   }
@@ -324,11 +350,16 @@ function modelScene(renderer: THREE.WebGLRenderer, canvas: HTMLCanvasElement, fo
 
   return {
     setNumber(index) {
-      numbers[numberIndex].visible = false
-      numbers[numberIndex].position.y = 1.46
+      if (index === numberIndex) return
+      settleNumber()
+      const previous = numberIndex
       numberIndex = index
-      numbers[index].visible = true
-      numberPulse = reducedMotion ? 0 : 1
+      if (!active || reducedMotion) settleNumber()
+      else {
+        numberRoll = { from: previous, to: index, elapsed: 0 }
+        numbers[index].position.y = numberBaseline - 1.3
+        numbers[index].visible = true
+      }
       renderer.shadowMap.needsUpdate = true
       if (active) render()
     },
@@ -345,14 +376,14 @@ function modelScene(renderer: THREE.WebGLRenderer, canvas: HTMLCanvasElement, fo
       reducedMotion = nextReducedMotion
       window.cancelAnimationFrame(frame)
       frame = 0
+      if (!active || reducedMotion) settleNumber()
       if (reducedMotion) {
         bars.forEach((bar, index) => {
           bar.scale.y = 1
           bar.position.y = -1.5 + glassBars[index] / 2
         })
-        numbers[numberIndex].position.y = 1.46
         insights.position.z = 0
-        numberPulse = insightPulse = 0
+        insightPulse = 0
       }
       if (active) {
         render()
