@@ -9,7 +9,7 @@ import { glassBars, inflationValues, insightMessages } from './landing-glass-dat
 export interface GlassScene {
   setNumber(index: number): void
   setInsight(index: number): void
-  setActivity(active: boolean, reducedMotion: boolean): void
+  setActivity(active: boolean): void
   dispose(): void
 }
 
@@ -161,12 +161,12 @@ function modelScene(renderer: THREE.WebGLRenderer, canvas: HTMLCanvasElement, fo
     return mesh
   }
 
-  const kicker = label('Exemplo de visualização', .3, -2.95, 2.59, -.13, mutedText)
-  const brand = label('ComInfla', .255, 1.99, 2.59, -.13, gold)
+  const kicker = label('Exemplo de visualização', .24, -2.95, 2.59, -.13, mutedText)
+  const brand = label('ComInfla', .255, 1.69, 2.59, -.13, gold)
   const dot = new THREE.Mesh(geometry(new THREE.SphereGeometry(.045, 12, 8)), gold)
-  dot.position.set(1.79, 2.68, -.1)
+  dot.position.set(1.49, 2.68, -.1)
   box.add(dot)
-  const period = label('Inflação pessoal · últimos 12 meses', .29, -2.95, .96, -.08, mutedText)
+  const period = label('Inflação pessoal · últimos 12 meses', .232, -2.95, .96, -.08, mutedText)
 
   const numberBaseline = 1.52
   // Keep both moving values inside the percentage line, clear of its labels.
@@ -216,7 +216,7 @@ function modelScene(renderer: THREE.WebGLRenderer, canvas: HTMLCanvasElement, fo
   )), material(new THREE.LineBasicMaterial({ color: 0x8c753d, transparent: true, opacity: .7 })))
   plaqueOutline.position.set(0, -2.42, .278)
   box.add(plaqueOutline)
-  const insightTitle = label('INSIGHT', .22, -2.75, -2.14, .3, gold)
+  const insightTitle = label('INSIGHT', .198, -2.75, -2.14, .3, gold)
 
   const wrap = (value: string, size: number, maxWidth: number) => {
     const width = (word: string) => Array.from(word).reduce((sum, char) => sum + (font.data.glyphs[char]?.ha ?? 500), 0) * size / font.data.resolution
@@ -266,10 +266,9 @@ function modelScene(renderer: THREE.WebGLRenderer, canvas: HTMLCanvasElement, fo
     })
     insightGroups[insightIndex].visible = true
   }
-  buildInsights(.26)
+  buildInsights(.234)
 
   let active = false
-  let reducedMotion = false
   let disposed = false
   let frame = 0
   let lastFrame = 0
@@ -294,7 +293,7 @@ function modelScene(renderer: THREE.WebGLRenderer, canvas: HTMLCanvasElement, fo
   }
   const render = () => { if (!disposed) renderer.render(scene, camera) }
   const animate = (timestamp: number) => {
-    if (disposed || !active || reducedMotion) { frame = 0; return }
+    if (disposed || !active) { frame = 0; return }
     frame = window.requestAnimationFrame(animate)
     const delta = timestamp - lastFrame
     if (delta < 1000 / 30) return
@@ -349,7 +348,7 @@ function modelScene(renderer: THREE.WebGLRenderer, canvas: HTMLCanvasElement, fo
       brand.scale.setScalar(compact ? 1.18 : 1)
       period.scale.setScalar(compact ? 1.17 : 1)
       insightTitle.scale.setScalar(compact ? 1.2 : 1)
-      buildInsights(compact ? .305 : .26)
+      buildInsights(compact ? .2745 : .234)
     }
     camera.position.set(compact ? 5.1 : 7.5, compact ? 2.8 : 3.8, 18)
     camera.lookAt(0, -.1, 0)
@@ -372,7 +371,7 @@ function modelScene(renderer: THREE.WebGLRenderer, canvas: HTMLCanvasElement, fo
       settleNumber()
       const previous = numberIndex
       numberIndex = index
-      if (!active || reducedMotion) settleNumber()
+      if (!active) settleNumber()
       else {
         numberRoll = { from: previous, to: index, startedAt: performance.now() }
         numbers[index].position.y = numberBaseline - 1.3
@@ -386,7 +385,7 @@ function modelScene(renderer: THREE.WebGLRenderer, canvas: HTMLCanvasElement, fo
       settleInsight()
       const previous = insightIndex
       insightIndex = index
-      if (!active || reducedMotion) settleInsight()
+      if (!active) settleInsight()
       else {
         insightRoll = { from: previous, to: index, startedAt: performance.now() }
         insightGroups[index].position.y = -.85
@@ -394,26 +393,19 @@ function modelScene(renderer: THREE.WebGLRenderer, canvas: HTMLCanvasElement, fo
       }
       if (active) render()
     },
-    setActivity(nextActive, nextReducedMotion) {
+    setActivity(nextActive) {
       if (disposed) return
       active = nextActive
-      reducedMotion = nextReducedMotion
       window.cancelAnimationFrame(frame)
       frame = 0
-      if (!active || reducedMotion) {
+      if (!active) {
         settleNumber()
         settleInsight()
-      }
-      if (reducedMotion) {
-        bars.forEach((bar, index) => {
-          bar.scale.y = 1
-          bar.position.y = -1.5 + glassBars[index] / 2
-        })
       }
       if (active) {
         render()
         lastFrame = lastRender = performance.now()
-        if (!reducedMotion) frame = window.requestAnimationFrame(animate)
+        frame = window.requestAnimationFrame(animate)
       }
     },
     dispose() {

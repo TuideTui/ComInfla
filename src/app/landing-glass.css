@@ -34,27 +34,11 @@
 .hero-glass-scene[data-fallback='true'] .hero-glass-preview { visibility: hidden; }
 .hero-glass-scene[data-ready='true'] .hero-glass-canvas { opacity: 1; }
 .hero-glass-fallback { position: absolute; inset: 6% 3%; }
-.hero-glass-fallback .hero-card-insight strong { font-size: 12px; }
-
-.hero-glass-motion-toggle {
-  position: absolute;
-  right: 6%;
-  bottom: -12px;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  min-height: 28px;
-  padding: 4px 9px;
-  border: 1px solid rgba(214,169,79,.16);
-  border-radius: 999px;
-  background: rgba(10,10,11,.7);
-  color: var(--muted);
-  font-size: 11px;
-  z-index: 1;
-}
-.hero-glass-motion-toggle:hover,
-.hero-glass-motion-toggle[aria-pressed='false'] { color: var(--gold-light); }
-.hero-glass-motion-toggle:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+.hero-glass-fallback .card-kicker { font-size: .8em; }
+.hero-glass-fallback > .muted { font-size: 12.8px; }
+.hero-glass-fallback .live-dot { margin-right: 12px; }
+.hero-glass-fallback .hero-card-insight span { font-size: 9px; }
+.hero-glass-fallback .hero-card-insight strong { font-size: 10.8px; }
 
 /* Keep the live content available to assistive technology after the scene loads. */
 .hero-glass-accessible {
@@ -76,13 +60,9 @@
   .hero-glass-fallback .hero-card-topline { font-size: 12px; gap: 8px; }
   .hero-glass-fallback .live-dot { font-size: 11px; }
   .hero-glass-fallback .hero-number { font-size: 42px; margin: 12px 0 4px; }
-  .hero-glass-fallback .muted { font-size: 12px; }
+  .hero-glass-fallback > .muted { font-size: 9.6px; }
   .hero-glass-fallback .bar-chart { min-height: 52px; height: 90px; flex: 1; margin-top: 18px; gap: 12px; }
   .hero-glass-fallback .hero-card-insight { padding: 10px; margin-top: 12px; }
-  .hero-glass-fallback .hero-card-insight strong { font-size: 10.5px; }
+  .hero-glass-fallback .hero-card-insight strong { font-size: 9.45px; }
   .hero-glass-accessible { padding: 0; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .hero-glass-scene .bar-chart span { animation: none !important; }
 }

@@ -13,15 +13,12 @@ const previewOptions = {
 }
 const { props: previewProps } = getImageProps({ ...previewOptions, src: previewDesktop })
 const { props: { srcSet: compactPreview } } = getImageProps({ ...previewOptions, src: previewCompact })
-const motionPreferenceKey = 'cominfla.hero.animations'
 
 export function LandingGlassCard() {
   const hostRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const toggleMotionRef = useRef<(() => void) | null>(null)
   const [ready, setReady] = useState(false)
   const [failed, setFailed] = useState(false)
-  const [motionPaused, setMotionPaused] = useState(false)
   const [numberIndex, setNumberIndex] = useState(0)
   const [insightIndex, setInsightIndex] = useState(0)
 
@@ -31,32 +28,16 @@ export function LandingGlassCard() {
     if (!host || !canvas) return
 
     const abort = new AbortController()
-    const motion = window.matchMedia('(prefers-reduced-motion: reduce)')
     let scene: GlassScene | undefined
     let visible = false
     let loading = false
     let hasFailed = false
-    let motionOverride: boolean | null = null
-    try {
-      const saved = window.localStorage.getItem(motionPreferenceKey)
-      if (saved === 'on' || saved === 'off') motionOverride = saved === 'on'
-    } catch {
-      // Private browsing can make preference storage unavailable.
-    }
     let currentNumber = 0
     let currentInsight = 0
     const active = () => visible && document.visibilityState === 'visible'
-    const playing = () => motionOverride ?? !motion.matches
     const updateActivity = () => {
       host.dataset.active = String(active())
-      const paused = !playing()
-      setMotionPaused(paused)
-      scene?.setActivity(active(), paused)
-    }
-    toggleMotionRef.current = () => {
-      motionOverride = !playing()
-      try { window.localStorage.setItem(motionPreferenceKey, motionOverride ? 'on' : 'off') } catch { /* Playback still works without storage. */ }
-      updateActivity()
+      scene?.setActivity(active())
     }
     const fallback = () => {
       scene?.dispose()
@@ -92,17 +73,16 @@ export function LandingGlassCard() {
     })
     observer.observe(host)
     document.addEventListener('visibilitychange', updateActivity)
-    motion.addEventListener('change', updateActivity)
     updateActivity()
 
     const numberTimer = window.setInterval(() => {
-      if (!active() || (!scene && !hasFailed) || motionOverride === false) return
+      if (!active() || (!scene && !hasFailed)) return
       currentNumber = (currentNumber + 1) % inflationValues.length
       setNumberIndex(currentNumber)
       scene?.setNumber(currentNumber)
     }, 3000)
     const insightTimer = window.setInterval(() => {
-      if (!active() || (!scene && !hasFailed) || motionOverride === false) return
+      if (!active() || (!scene && !hasFailed)) return
       currentInsight = (currentInsight + 1) % insightMessages.length
       setInsightIndex(currentInsight)
       scene?.setInsight(currentInsight)
@@ -112,10 +92,8 @@ export function LandingGlassCard() {
       abort.abort()
       observer.disconnect()
       document.removeEventListener('visibilitychange', updateActivity)
-      motion.removeEventListener('change', updateActivity)
       window.clearInterval(numberTimer)
       window.clearInterval(insightTimer)
-      toggleMotionRef.current = null
       scene?.dispose()
     }
   }, [])
@@ -144,20 +122,6 @@ export function LandingGlassCard() {
           <strong aria-live="polite">{insightMessages[insightIndex]}</strong>
         </div>
       </div>
-      {ready && (
-        <button
-          type="button"
-          className="hero-glass-motion-toggle"
-          onClick={() => toggleMotionRef.current?.()}
-          aria-pressed={!motionPaused}
-          aria-label={motionPaused ? 'Ativar animações da visualização' : 'Pausar animações da visualização'}
-        >
-          <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor" aria-hidden="true">
-            {motionPaused ? <path d="M4 2.5 13 8l-9 5.5z" /> : <path d="M4 3h3v10H4zm5 0h3v10H9z" />}
-          </svg>
-          <span>{motionPaused ? 'Animar' : 'Pausar'}</span>
-        </button>
-      )}
     </div>
   )
 }
