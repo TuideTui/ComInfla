@@ -1,216 +1,63 @@
-.landing-hero .hero-copy, .landing-hero .hero-visual { min-width: 0; }
+.landing-hero .hero-copy,
+.landing-hero .hero-visual { min-width: 0; }
 
 .hero-glass-scene {
   position: relative;
   width: 100%;
-  padding: 26px 16px;
-  perspective: 1400px;
+  aspect-ratio: 1.04;
+  isolation: isolate;
 }
 
 .hero-glass-scene::before {
   content: '';
   position: absolute;
-  width: 280px;
-  height: 280px;
-  top: -18px;
-  right: -40px;
-  background: radial-gradient(circle, rgba(214,169,79,.14), transparent 70%);
+  inset: 8% -6% 8% 12%;
+  background: radial-gradient(ellipse at 70% 30%, rgba(214,169,79,.07), transparent 64%);
   pointer-events: none;
+  z-index: -1;
 }
 
-.hero-glass-shadow {
-  position: absolute;
-  height: 35px;
-  inset: auto 24px 2px;
-  border-radius: 50%;
-  background: radial-gradient(ellipse, rgba(0,0,0,.7), transparent 72%);
-  box-shadow: 0 18px 35px rgba(0,0,0,.35);
-  pointer-events: none;
-}
-
-.landing-glass-card {
-  --glass-rotate-x: -8deg;
-  --glass-rotate-y: -12deg;
-  overflow: visible;
-  border-color: transparent;
-  background: transparent;
-  box-shadow: none;
-  transform-style: preserve-3d;
-  transform: rotateX(var(--glass-rotate-x)) rotateY(var(--glass-rotate-y));
-  transition: transform .24s ease-out;
-}
-
-.landing-glass-card::before { display: none; }
-
-.hero-glass-front,
-.hero-glass-back {
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-}
-
-.hero-glass-front {
-  border: 1px solid rgba(240,207,135,.36);
-  background: linear-gradient(135deg, rgba(255,255,255,.09), rgba(28,28,29,.5) 35%, rgba(14,14,15,.6) 75%, rgba(214,169,79,.07));
-  box-shadow: inset 0 1px 0 rgba(255,242,205,.22), inset 1px 0 0 rgba(255,255,255,.09), inset 0 -1px 0 rgba(214,169,79,.14);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-}
-
-.hero-glass-back {
-  transform: translateZ(-24px);
-  border: 1px solid rgba(214,169,79,.2);
-  background: linear-gradient(145deg, rgba(35,33,28,.7), rgba(13,13,15,.88));
-  box-shadow: 0 32px 65px rgba(0,0,0,.4);
-}
-
-.hero-glass-edge {
-  position: absolute;
-  pointer-events: none;
-  border: 1px solid rgba(240,207,135,.16);
-  background: linear-gradient(90deg, rgba(240,207,135,.2), rgba(29,28,24,.6));
-}
-
-.hero-glass-edge-right {
-  top: 18px;
-  bottom: 18px;
-  left: 100%;
-  width: 24px;
-  transform-origin: left center;
-  transform: rotateY(90deg);
-}
-
-.hero-glass-edge-top {
-  top: 0;
-  left: 18px;
-  right: 18px;
-  height: 24px;
-  transform-origin: center top;
-  transform: rotateX(-90deg);
-}
-
-.hero-glass-edge-bottom {
-  top: 100%;
-  left: 18px;
-  right: 18px;
-  height: 24px;
-  transform-origin: center top;
-  transform: rotateX(-90deg);
-}
-
-.landing-glass-card .hero-card-topline { transform: translateZ(24px); font-size: 14px; }
-.hero-number-layer { transform: translateZ(62px); margin: 22px 0 4px; }
-.landing-glass-card .hero-number {
-  margin: 0;
-  color: #f4d58b;
-  letter-spacing: -.035em;
-  text-shadow: 1px 1px 0 #a97d2d, 2px 2px 0 #9c7126, 3px 3px 0 #8b6421, 4px 4px 0 #76551c, 5px 5px 0 #604618, 8px 12px 16px rgba(0,0,0,.42);
-}
-.hero-period-label { transform: translateZ(26px); font-size: 14px; }
-
-.landing-glass-card .bar-chart {
-  transform: translateZ(32px) rotateX(-6deg) rotateY(-4deg);
-  transform-origin: center bottom;
-  transform-style: preserve-3d;
-  gap: 20px;
-  padding-right: 12px;
-  border-bottom-color: rgba(214,169,79,.32);
-}
-
-.landing-glass-card .bar-chart .hero-chart-column {
-  position: relative;
-  min-width: 14px;
-  background: transparent;
-  transform-style: preserve-3d;
-  perspective: 600px;
-}
-
-.landing-glass-card .bar-chart .hero-bar-prism {
-  position: absolute;
-  inset: 0;
+.hero-glass-canvas {
   display: block;
-  min-width: 0;
-  border-radius: 0;
-  background: transparent;
-  transform-style: preserve-3d;
-  transform-origin: center center;
-  transform: rotateX(-12deg) rotateY(-18deg);
-  animation: none !important;
-  will-change: auto;
-}
-
-.hero-chart-column i {
   position: absolute;
-  display: block;
-  pointer-events: none;
-}
-
-.hero-bar-front {
   inset: 0;
-  border: 1px solid rgba(255,255,255,.1);
-  border-radius: 5px 5px 2px 2px;
-  background: linear-gradient(135deg, #555249, #302e2a 75%);
-  box-shadow: inset 1px 0 0 rgba(255,255,255,.06);
-  transform: translateZ(24px);
-}
-
-.hero-bar-top {
-  top: 0;
-  left: 0;
   width: 100%;
-  height: 24px;
-  background: linear-gradient(90deg, #777264, #5b564b);
-  transform-origin: center top;
-  transform: rotateX(90deg);
-}
-
-.hero-bar-side {
-  top: 0;
-  left: 100%;
-  width: 24px;
   height: 100%;
-  background: linear-gradient(180deg, #36332b, #1d1c19);
-  transform-origin: left center;
-  transform: rotateY(-90deg);
+  opacity: 0;
+  transition: opacity .35s ease;
+  pointer-events: none;
 }
 
-.hero-chart-column.active .hero-bar-front {
-  border-color: rgba(255,226,159,.45);
-  background: linear-gradient(135deg, #f0cd78, #cf9e36 70%, #b68427);
-}
-.hero-chart-column.active .hero-bar-top { background: linear-gradient(90deg, #ffe6a9, #eac36c); }
-.hero-chart-column.active .hero-bar-side { background: linear-gradient(180deg, #b7862c, #795519); }
+.hero-glass-scene[data-ready='true'] .hero-glass-canvas { opacity: 1; }
+.hero-glass-fallback { position: absolute; inset: 6% 3%; }
 
-.landing-glass-card .hero-card-insight {
-  transform: translateZ(46px);
-  background: linear-gradient(135deg, rgba(51,44,29,.72), rgba(24,23,22,.92));
-  border-color: rgba(240,207,135,.26);
-  box-shadow: 1px 2px 0 rgba(121,94,40,.25), 3px 5px 0 rgba(35,30,21,.9), 7px 12px 20px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,238,198,.09);
+/* Keep the live content available to assistive technology after the scene loads. */
+.hero-glass-accessible {
+  clip-path: inset(50%);
+  width: 1px;
+  height: 1px;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+  white-space: nowrap;
 }
-
-.hero-glass-scene[data-active='false'] .hero-chart-column { animation-play-state: paused !important; }
-
-@media (max-width: 980px) {
-  .hero-glass-scene { padding: 20px 12px; }
-  .landing-glass-card { --glass-rotate-x: -6deg; --glass-rotate-y: -6deg; }
-}
+.hero-glass-accessible .bar-chart span,
+.hero-glass-scene[data-active='false'] .bar-chart span { animation: none !important; }
 
 @media (max-width: 620px) {
-  .hero-glass-scene { padding: 22px 12px; perspective: 1100px; }
-  .landing-glass-card { padding: 26px 22px; --glass-rotate-x: -5deg; --glass-rotate-y: -5deg; }
-  .landing-glass-card .hero-card-topline { font-size: 12px; gap: 8px; }
-  .landing-glass-card .live-dot { font-size: 11px; }
-  .hero-number-layer { transform: translateZ(36px); }
-  .landing-glass-card .hero-number { font-size: 52px; }
-  .hero-period-label { transform: translateZ(16px); font-size: 12px; }
-  .landing-glass-card .bar-chart { gap: 12px; transform: translateZ(22px) rotateX(-6deg); }
-  .landing-glass-card .hero-card-insight { padding: 13px; transform: translateZ(28px); }
+  .hero-glass-scene { aspect-ratio: .98; min-height: 330px; }
+  .hero-glass-fallback { padding: 20px; min-height: 0; }
+  .hero-glass-fallback .hero-card-topline { font-size: 12px; gap: 8px; }
+  .hero-glass-fallback .live-dot { font-size: 11px; }
+  .hero-glass-fallback .hero-number { font-size: 42px; margin: 12px 0 4px; }
+  .hero-glass-fallback .muted { font-size: 12px; }
+  .hero-glass-fallback .bar-chart { min-height: 52px; height: 90px; flex: 1; margin-top: 18px; gap: 12px; }
+  .hero-glass-fallback .hero-card-insight { padding: 10px; margin-top: 12px; }
+  .hero-glass-fallback .hero-card-insight strong { font-size: 11px; }
+  .hero-glass-accessible { padding: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .landing-glass-card { transform: none; transition: none; }
-  .landing-glass-card .bar-chart .hero-chart-column { animation: none !important; }
-  .hero-number-layer, .hero-period-label, .landing-glass-card .hero-card-topline,
-  .landing-glass-card .bar-chart, .landing-glass-card .hero-card-insight { transform: none; }
+  .hero-glass-canvas { transition: none; }
+  .hero-glass-scene .bar-chart span { animation: none !important; }
 }

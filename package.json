@@ -15,13 +15,15 @@
     "pdfjs-dist": "^5.4.296",
     "react": "latest",
     "react-dom": "latest",
-    "tesseract.js": "^6.0.1"
+    "tesseract.js": "^6.0.1",
+    "three": "0.186.1"
   },
   "devDependencies": {
     "@types/leaflet": "^1.9.20",
     "@types/node": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
+    "@types/three": "0.186.0",
     "typescript": "latest"
   }
 }
